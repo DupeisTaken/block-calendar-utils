@@ -22,15 +22,13 @@ class Workspace:
 
     def semesters(self) -> list[str]:
         result = sorted(p.parent.name for p in (self.root / "semesters").glob("*/semester.json"))
-        if not result:
-            raise CalendarError(f"No semesters found in {self.root / 'semesters'}. Run from a complete project checkout.")
         return result
 
     def settings(self) -> dict:
         settings = read_json(self.settings_path) if self.settings_path.exists() else {}
-        defaults = {"profile": "me", "semester": self.semesters()[0], "mode": "this", "anchor": "", "end": "", "weeks": 1, "late": False, "schedule_mode": "saved"}
+        defaults = {"profile": "me", "semester": "", "active_semester": "", "mode": "this", "anchor": "", "end": "", "weeks": 1, "late": False, "schedule_mode": "weekdays"}
         defaults.update(settings)
-        for key in ("profile", "semester", "mode", "anchor", "end"):
+        for key in ("profile", "semester", "active_semester", "mode", "anchor", "end"):
             if not isinstance(defaults[key], str):
                 raise CalendarError(f"settings.json: {key} must be text.")
         if type(defaults["weeks"]) is not int or type(defaults["late"]) is not bool:
@@ -41,6 +39,24 @@ class Workspace:
 
     def save_settings(self, settings: dict) -> None:
         write_json(self.settings_path, settings, backup=True)
+
+    def selected_semester(self, explicit=None) -> str:
+        """Old implicit defaults never count as an explicit semester selection."""
+        selected = explicit or self.settings()["active_semester"]
+        if not selected:
+            raise CalendarError("Select a defined timetable first: semester list, then semester use ID. For a new timetable: semester new ID --blocks X,Y,Z.")
+        return selected
+
+    def use_semester(self, semester_id, profile=None):
+        settings = self.settings()
+        folder = safe_child(self.root / "semesters", semester_id)
+        definition = load_semester(folder)
+        load_overrides(folder / "exceptions.csv", definition)
+        ctx = self.context(profile or settings["profile"], semester_id, create=True)
+        ctx.courses()
+        settings.update(profile=ctx.profile, semester=semester_id, active_semester=semester_id)
+        self.save_settings(settings)
+        return ctx
 
     def context(self, profile: str, semester_id: str, *, create: bool = False):
         folder = safe_child(self.root / "semesters", semester_id)
@@ -57,7 +73,7 @@ class Workspace:
             if not (data_dir / "exceptions.csv").exists():
                 atomic_write(data_dir / "exceptions.csv", csv_bytes(EXCEPTION_FIELDS, []), overwrite=False)
         if not identity_path.exists() or not (data_dir / "courses.csv").exists():
-            raise CalendarError(f"Profile {profile!r} is not set up for {semester_id}. Run the menu, GUI, or init command first.")
+            raise CalendarError(f"Profile {profile!r} is not set up for {semester_id}. Run courses set BLOCK NAME, courses edit, or init first.")
         identity = read_json(identity_path).get("id")
         try:
             UUID(identity)
@@ -109,6 +125,8 @@ class Context:
         return preview
 
     def export(self, preview, output: Path | None = None, *, overwrite: bool = False) -> Path:
+        if not preview.events:
+            raise CalendarError("No classes in this range. Check your course selections and dates in the preview.")
         output = output or self.workspace.root / "exports" / f"{self.profile}-{self.semester.id}-{preview.start}-{preview.end}.ics"
         protected = [self.courses_path, self.exceptions_path, self.workspace.settings_path]
         if output.resolve() in [p.resolve() for p in protected]:

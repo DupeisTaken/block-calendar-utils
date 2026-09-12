@@ -1,146 +1,147 @@
 # SHBS Calendar
 
-Export your selected classes and study periods to an `.ics` file. Use the numbered terminal menu or the simple desktop interface. Choose a week, several weeks, or any inclusive start/end dates. No semester dates, accounts, server, or Excel installation are required.
+Define a semester's blocks and timetable, name your selected courses and study periods, then export any inclusive date range to `.ics`. Terminal commands perform one action and exit. **Running without arguments shows help; there is no navigation menu.**
 
-## Start
+Python **3.11+**, Windows or macOS. No runtime pip packages, Excel, accounts or server required. Run commands from the project folder; use `python3` instead of `python` on macOS.
 
-Install **Python 3.11 or newer**, download/clone this project, and open a terminal in its folder. The application uses only Python's standard library; there are **no pip packages to install**.
+## First use
 
-Windows:
-
-```powershell
-python -m shbs-calendar
-```
-
-macOS:
+The supplied workbook has already been transcribed into the `2026-27-s1` definition. Review it, then explicitly select it:
 
 ```sh
-python3 -m shbs-calendar
+python -m shbs-calendar semester show 2026-27-s1
+python -m shbs-calendar semester use 2026-27-s1
+python -m shbs-calendar courses edit
 ```
 
-For the GUI, add `gui`:
+`courses edit` is the only terminal command that asks questions. It collects course names for the selected semester's blocks, then saves once. Enter keeps the current value (a blank block stays unused); `-` clears a name. Ctrl+C cancels unsaved input. Name a block **Study Hall** to include a study period. Optional timing choices come from the semester definition.
 
-```powershell
-python -m shbs-calendar gui
-```
-
-On macOS use `python3`. The old `python -m shbs_calendar` command still works for existing scripts. On Windows you can also double-click `shbs-gui.pyw` if `.pyw` is associated with Python. The GUI needs Tkinter, normally supplied by the Python.org desktop installers. Check your installation with `python -m tkinter` (or `python3 -m tkinter`); close its test window afterward. The terminal workflow works without Tkinter.
-
-## Everyday workflow
-
-1. Enter a name for each block once. Leave unused blocks blank. Enter **Study Hall** to include a study period. For T, choose **Study hall** or **TOEFL lesson**.
-2. Choose **1 Export calendar**. The guided flow asks for **first date and last date** (both included), then normal/late timing. This week, Next week, and multi-week shortcuts remain available.
-3. Answer **Does this range follow the normal weekday schedule?** Choose Yes to use only the normal timetable. Choose No to review/add exceptions, such as no classes, another weekday's timetable, or a timing change. At least one exception must fall inside the selected dates. For ranges of up to 31 days, select the exception date by number.
-4. Review the short export summary, optionally view the full timetable, and export. You can change dates/timing or exceptions from that same review screen. Files go into `exports/` unless you choose another destination.
-
-The simplified main menu is Export calendar, My courses, Saved date exceptions, Semester/profile, Open GUI, and Quit. Within the export flow, `0` returns to the main menu; date-entry prompts also accept `b`. Invalid dates are retried without losing the first valid date. The menu remembers export dates, timing, and weekday/exception choice after a successful export. Saved exception edits are retained even if you return to the menu without exporting.
-
-In the GUI, **Dates & preview** has editable first/last date fields. Week shortcuts fill the endpoints; editing an endpoint selects an explicit date range. Uncheck **Follows normal weekdays** to open the exception editor. Preview/export saves the date and schedule choices. Relative presets recalculate when used again. Week ranges are Monday–Sunday, with weekends empty unless a makeup day is applied.
-
-Course names, optional rooms/teachers, and the T choice are stored in:
-
-```text
-local/profiles/me/2026-27-s1/courses.csv
-```
-
-You can edit that CSV directly. The GUI's **Reload CSV** button picks up external edits; it will refuse to overwrite conflicting unsaved changes. The `local/` and `exports/` folders are gitignored. The app ships no real student selections.
-
-## Timing and exceptions
-
-The included 2026–27 S1 preset uses the supplied workbook, with your clarified T rule:
-
-| Session | Normal | Late (+20 minutes) |
-| --- | --- | --- |
-| Wednesday T, both choices | 15:05–15:45 | 15:25–16:05 |
-| Thursday T, Study hall | 15:45–16:25 | 16:05–16:45 |
-| Thursday T, TOEFL lesson | 15:45–17:05 | 16:05–17:25 |
-
-P&B, CAS, clubs, and meals are excluded. Only named, enabled classes/study periods are exported. The preset's school clock is **UTC+08:00**, independent of the computer's clock. Events are written in UTC, so calendar apps can display them in their selected timezone.
-
-For example, to make Friday 18 September use Monday's classes, add a date exception with date `2026-09-18`, action `use`, and pattern `monday`. The events stay on Friday. Timing can inherit the export setting, be Normal, or be Late. This does not change other days.
-
-School-wide exceptions are in `semesters/2026-27-s1/exceptions.csv`; your personal file is next to `courses.csv`. With exception scheduling selected, one personal row replaces the school row for the same date, and the preview reports that replacement. Unlisted dates still follow their usual weekday pattern. Selecting normal weekdays ignores both exception files for that export, without deleting or changing them. No holidays or late days are guessed automatically.
-
-See [configuration details](docs/configuration.md) for CSV formats, custom half-days, and adding a new semester.
-
-## Direct commands
-
-Use `python3` instead of `python` on macOS. Commands never prompt, and do not change your saved date settings.
+Prefer arguments for course entry? Use these instead:
 
 ```sh
-# Create your blank profile files, then edit courses.csv.
-python -m shbs-calendar init --profile me
-
-# A selected week, or three weeks starting with that week.
-python -m shbs-calendar preview --week 2026-09-14
-python -m shbs-calendar export --week 2026-09-14 --weeks 3
-
-# Part of a week; both endpoint dates are included.
-python -m shbs-calendar export --first-date 2026-09-16 --last-date 2026-09-18 --schedule weekdays
-
-# Use saved date exceptions (requires at least one within this range).
-python -m shbs-calendar export --first-date 2026-09-16 --last-date 2026-09-18 --schedule exceptions
-
-# Override remembered timing for this export.
-python -m shbs-calendar export --next-week --late
-python -m shbs-calendar export --this-week --normal
-
-# Check inputs and the resulting schedule without writing a calendar.
-python -m shbs-calendar validate --week 2026-09-14
-
-# Explicit output; replacing an existing file requires --overwrite.
-python -m shbs-calendar export --week 2026-09-14 -o exports/my-week.ics --overwrite
+python -m shbs-calendar courses set A "Mathematics"
+python -m shbs-calendar courses set T "Study Hall" --timing study-hall
+python -m shbs-calendar courses set T "TOEFL" --timing toefl
 ```
 
-`--start`/`--end` remain short aliases for `--first-date`/`--last-date`. `--normal` controls class times, while `--schedule weekdays` controls whether date exceptions apply. If `--schedule` is omitted, commands use the saved schedule choice; older profiles without a choice retain the original behavior of applying saved exceptions when present. Scripts never open an editor: add exceptions through the menu/GUI or CSV first.
+The last command replaces the earlier T selection. `--timing` accepts hyphenated names; existing CSV keys such as `study_hall` remain compatible.
 
-Use `--profile NAME` and `--semester ID` after a command to select other saved data. Use `--root PATH` **before** the command to point at another complete project/data folder. `--help` lists the commands. Exit codes: `0` success, `2` invalid input/write failure, `130` cancelled terminal input.
+**Upgrading from the menu version:** run `semester use 2026-27-s1` once to confirm the definition. Your existing course CSVs, exceptions and profile identity are retained. The old automatically chosen semester does not count as an explicit selection.
 
-## Import the calendar
+## Export with arguments
 
-Create a separate calendar for your school exports, then import the file into it:
+```sh
+# First and last date, both included. No questions or confirmation menu.
+python -m shbs-calendar --dayrange 2026-09-14:2026-09-18
 
-- **Google Calendar (computer):** Settings → Import & export → select the `.ics` file and destination calendar → Import. [Google's instructions](https://support.google.com/calendar/answer/37118?hl=en).
-- **Apple Calendar (Mac):** File → Import, then select the `.ics` file and destination calendar. [Apple's instructions](https://support.apple.com/guide/calendar/import-or-export-calendars-icl1023/mac).
-- **Outlook on the web:** Calendar → Add calendar → Upload from file, select the file and destination, then import. [Microsoft's instructions](https://support.microsoft.com/en-us/outlook/import-or-subscribe-to-a-calendar-in-outlook-com-or-outlook-on-the-web).
+# A single day, next week, or three weeks beginning with a selected week.
+python -m shbs-calendar --dayrange 2026-09-17
+python -m shbs-calendar --next-week
+python -m shbs-calendar --week 2026-09-14 --weeks 3
 
-An export is a snapshot, not a subscription. Stable event IDs help identify the same occurrence, but repeated file imports are not guaranteed to update or delete prior events in every app. Prefer nonoverlapping export ranges. For a changed range already imported, inspect and replace the affected imported events in your dedicated school calendar. Keep unrelated personal events in a separate calendar.
+# Inspect before exporting, or explicitly choose the destination.
+python -m shbs-calendar preview --dayrange 2026-09-16:2026-09-18
+python -m shbs-calendar export --next-week --late -o exports/next-week.ics
+```
 
-The files pass independent iCalendar parser checks. Actual imports and repeat-import behavior in Google Calendar, Apple Calendar, and Outlook have **not** been tested in this environment.
+You can omit `export` when supplying export flags. `--this-week` is also available. `--first-date DATE --last-date DATE` and their shorter `--start`/`--end` aliases still work. Week shortcuts cover Monday–Sunday; unscheduled days have no events. Every export or preview requires a date range or week shortcut.
 
-## Development and verification
+**Each terminal export defaults to normal times and the regular weekday timetable**, irrespective of saved GUI settings. Add `--late` to shift start/end times by 20 minutes. Add `--schedule exceptions` to apply saved unusual days. `--normal` and `--schedule weekdays` explicitly select the defaults. Commands do not change remembered GUI dates or timing.
 
-Run the dependency-free tests:
+Exports go to the gitignored `exports/` folder. Success reports the event count, dates and path. Existing files require `--overwrite`; an empty selection/range reports an error instead of writing an empty calendar.
+
+## Unusual school days
+
+```sh
+# Friday follows the complete Monday class pattern, on Friday's actual date.
+python -m shbs-calendar exceptions set 2026-09-18 --follow monday
+
+# No classes, or a late day with its usual pattern.
+python -m shbs-calendar exceptions set 2026-09-21 --off
+python -m shbs-calendar exceptions set 2026-09-22 --late
+
+# Apply saved exceptions only when requested for an export.
+python -m shbs-calendar --dayrange 2026-09-14:2026-09-25 --schedule exceptions
+
+python -m shbs-calendar exceptions list
+python -m shbs-calendar exceptions remove 2026-09-18
+```
+
+`--follow` takes a pattern listed by `semester show ID`. Add `--shift 0` or `--shift 20` with `--follow` to replace that date's timing; otherwise it inherits the export's timing. `--normal` sets a usual-pattern day to normal timing. `--note "Text"` records an optional explanation.
+
+Exception scheduling requires at least one saved exception inside the chosen range. Other dates follow normal weekdays. Your date overrides the school's row for that date. Normal weekday exports ignore both files without changing them. No holidays or late days are guessed.
+
+## A different semester
+
+Blocks, their number, weekday arrangements, times and optional duration choices belong to each semester. No block names or shuffle are assumed for a new one.
+
+```sh
+python -m shbs-calendar semester new spring --blocks X,Y,Z
+```
+
+This creates a **draft**, with an empty `semesters/spring/timetable.csv`. Fill the CSV with the actual arrangements. Each row is one complete event interval:
+
+```csv
+pattern,block,start,end
+monday,X,08:30,09:10
+monday,Y,09:20,10:00
+monday,Z,10:10,10:50
+tuesday,Y,08:30,09:10
+```
+
+Continue with all your scheduled days and blocks. The default weekday mapping is Monday–Friday using lowercase `monday` through `friday`. A mapped pattern must have rows, and every defined block must appear. A semester with fewer days or different patterns can specify, for example, `--weekdays mon=red,tue=blue,fri=red`; omitted weekdays have no classes. The fixed school clock defaults to UTC+08:00 and can be set with `--utc-offset +08:00`.
+
+If you already have a complete CSV, supply it at creation:
+
+```sh
+python -m shbs-calendar semester new spring --blocks X,Y,Z --timetable my-timetable.csv
+python -m shbs-calendar semester show spring
+python -m shbs-calendar semester use spring
+python -m shbs-calendar courses edit
+```
+
+Use either creation approach, not both for the same ID. A malformed supplied CSV is rejected without creating the semester. A draft cannot be used until its definition validates. `semester use` creates separate blank selections for the new semester; previous semesters stay intact. Definitions are validated again whenever a command opens them.
+
+To deliberately reuse an arrangement, `semester new spring --copy 2026-27-s1` copies only the definition, including timing choices. It does not copy date exceptions or student courses, or activate the result. Review and edit it before use. `semester list` shows available definitions, drafts and the active selection.
+
+Advanced choices, half-day patterns and CSV details: [configuration](docs/configuration.md). Project boundaries and setup rules: [architecture](docs/architecture.md).
+
+## Courses, profiles and GUI
+
+| Command | Action |
+| --- | --- |
+| `courses list` | Show selected and unused blocks |
+| `courses path` | Show the CSV to edit directly |
+| `courses edit A T` | Collect inputs only for those blocks |
+| `courses set A "Math" --room "Lab 1" --teacher "Example"` | Set a name and optional details |
+| `courses disable A T` / `courses enable A T` | Keep names but change inclusion |
+| `courses clear A` | Clear a selection |
+| `courses import choices.csv` | Validate and replace selections, backing up the old file |
+| `validate --next-week` | Validate a selected range without exporting |
+| `gui` | Open the simple desktop interface |
+
+Prefix each command with `python -m shbs-calendar`. Use `COMMAND --help` for details. `--root PATH`, `--profile NAME` and `--semester ID` can appear before or after commands. `--semester` selects an existing valid definition for that invocation; `semester use ID` remembers it. To select a default student profile, use `semester use ID --profile NAME`. `init --semester ID --profile NAME` only creates blank files for direct editing.
+
+Courses are saved under `local/profiles/<profile>/<semester>/courses.csv`; personal exceptions sit beside them. **`local/` and `exports/` are gitignored.** Keep the profile's `profile.json` when moving your local data to another machine so event identities remain stable. Semester definitions are shared project data and may be committed; they contain no student selections.
+
+The GUI has courses, dates/preview and exceptions tabs. On first use it asks you to select and review a semester definition. Create new definitions through the terminal or configuration files. After changing definitions on disk, reopen the GUI. The GUI retains its own last-used range; those choices do not affect terminal exports. Its CSV reload and save operations detect conflicting external edits.
+
+Tkinter is needed only for the GUI and is normally included in Python.org desktop installers. On Windows, `shbs-gui.pyw` is also a double-click launcher. The legacy `python -m shbs_calendar` entry point still works.
+
+## Included timetable and calendar files
+
+The supplied 2026–27 S1 preset includes only classes/study periods; P&B, CAS, clubs and meals are excluded. Wednesday T runs 15:05–15:45 for both choices. Thursday T ends at **16:25 for study hall** and **17:05 for TOEFL**, starting at 15:45. Late timing adds 20 minutes. Those rules belong to this preset, not every semester.
+
+Files use UTC instants derived from the school's fixed offset. Independent parser checks pass, but actual imports in Google Calendar, Apple Calendar and Outlook remain unverified. Further investigation of dragging files into new Outlook is deferred while the interaction design takes priority.
+
+Use the destination app's calendar import flow: [Google](https://support.google.com/calendar/answer/37118?hl=en), [Apple](https://support.apple.com/guide/calendar/import-or-export-calendars-icl1023/mac), [Outlook web](https://support.microsoft.com/en-us/outlook/import-or-subscribe-to-a-calendar-in-outlook-com-or-outlook-on-the-web). Exports are snapshots, not subscriptions. Reimports are not guaranteed to update or delete older events; a separate school calendar and nonoverlapping ranges make them easier to manage.
+
+## Development
 
 ```sh
 python -m unittest discover -v
 ```
 
-Native GUI tests are opt-in so ordinary test runs do not create windows. Windows PowerShell:
+Opt into native GUI tests with `SHBS_GUI_TESTS=1` (PowerShell: `$env:SHBS_GUI_TESTS='1'`). Optional parser and screenshot tools use `requirements-dev.txt` in a local virtual environment; none are application dependencies. Run `python tools/verify_gui.py` for the main screens, or add `--setup` for semester review. Screenshots use synthetic data, one short-lived window, and ignored `local/qa/` output. See [verification](docs/verification.md) for checks and platform limitations.
 
-```powershell
-$env:SHBS_GUI_TESTS = '1'
-python -m unittest discover -v
-Remove-Item Env:SHBS_GUI_TESTS
-```
-
-On macOS: `SHBS_GUI_TESTS=1 python3 -m unittest discover -v` from a desktop session.
-
-Optional independent parser and screenshot tools stay in a **local virtual environment**:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-.\.venv\Scripts\python.exe -m unittest tests.test_ical_interop -v
-.\.venv\Scripts\python.exe tools/verify_gui.py
-```
-
-On macOS, use `.venv/bin/python` instead of `.venv\Scripts\python.exe`. Screenshot tools use synthetic data and close their window after capture. [Verification notes](docs/verification.md) record what was checked and the remaining platform/client checks.
-
-## Limits
-
-- The school clock is a fixed offset; arbitrary daylight-saving timezones are not implemented.
-- No automatic Excel importer, account synchronization, reminders, or alternating-week rotation.
-- Changing a course mapping changes future **and past** exports made with that mapping. For a mid-semester change, preserve the old profile and use a new one for subsequent dates.
-- An export is capped at 3,660 days to avoid accidental oversized jobs.
-- Keep the whole project folder together; this version runs from a source checkout rather than an installed wheel.
+Exit codes: `0` success, `2` invalid input/write failure, `130` cancelled course input. The fixed-offset clock does not implement daylight saving. Automatic Excel import, alternating-week rotation and account synchronization are not implemented. Export ranges are capped at 3,660 days. Keep the project folder together; this runs from a source checkout.

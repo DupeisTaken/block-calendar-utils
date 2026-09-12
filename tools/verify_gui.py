@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.gui import CalendarApp
+from shbs_calendar.gui import CalendarApp, SemesterSetup
 
 
 def main():
@@ -22,6 +22,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--scale", type=float, default=1.333)
+    parser.add_argument("--setup", action="store_true", help="Capture the semester review screen")
     parser.add_argument("--output", type=Path, default=DEFAULT_ROOT / "local/qa")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
@@ -30,7 +31,31 @@ def main():
         shutil.copytree(DEFAULT_ROOT / "semesters", root_path / "semesters")
         root = tk.Tk()
         root.tk.call("tk", "scaling", args.scale)
-        app = CalendarApp(root, Workspace(root_path))
+        workspace = Workspace(root_path)
+        if args.setup:
+            setup = SemesterSetup(root, workspace)
+            setup.semester_var.set("2026-27-s1")
+            setup.review()
+            def capture_setup():
+                try:
+                    root.update_idletasks()
+                    button = setup.use_button
+                    assert button.winfo_rooty() + button.winfo_height() <= root.winfo_rooty() + root.winfo_height(), "Semester activation button clipped"
+                    if sys.platform == "win32":
+                        image = ImageGrab.grab(window=int(root.frame(), 16))
+                    else:
+                        x, y = root.winfo_rootx(), root.winfo_rooty()
+                        image = ImageGrab.grab(bbox=(x, y, x + root.winfo_width(), y + root.winfo_height()))
+                    path = args.output / f"setup-{args.scale}.png"
+                    image.save(path)
+                    print(path)
+                finally:
+                    root.destroy()
+            root.after(500, capture_setup)
+            root.mainloop()
+            return
+        workspace.use_semester("2026-27-s1")
+        app = CalendarApp(root, workspace)
         names = ["Chemistry", "Study Hall", "Advanced Mathematics", "World History", "Physics", "Music Theory", "English Language", "Physical Education", "TOEFL Study Hall", "Creative Writing"]
         for (block, fields), name in zip(app.course_vars, names):
             fields["course"].set(name)

@@ -206,7 +206,7 @@ class StorageTests(unittest.TestCase):
 
     def test_cli_service_reads_manual_exception_changes(self):
         self.ctx.save_courses([Course("A", "Math", enabled=True)], digest(self.ctx.courses_path))
-        settings = dict(self.workspace.settings(), mode="week", anchor="2026-09-14")
+        settings = dict(self.workspace.settings(), mode="week", anchor="2026-09-14", schedule_mode="saved")
         self.assertEqual(len(self.ctx.preview(settings).events), 3)
         self.ctx.exceptions_path.write_text("date,action\n2026-09-14,off\n", encoding="utf-8")
         self.assertEqual(len(self.ctx.preview(settings).events), 2)

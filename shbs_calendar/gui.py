@@ -7,7 +7,8 @@ from pathlib import Path
 from .app import DEFAULT_ROOT, Workspace
 from .models import CalendarError, Course, DayOverride
 from .schedule import preview_text
-from .storage import digest, parse_date
+from .semesters import describe_semester
+from .storage import digest, parse_date, safe_child
 
 BG, INK, MUTED, ACCENT = "#f4f5f1", "#1b302d", "#626e69", "#24695b"
 MODES = {"First and last dates": "custom", "This week": "this", "Next week": "next", "Choose a week": "week"}
@@ -21,7 +22,7 @@ class CalendarApp:
     def __init__(self, root, workspace):
         self.root, self.workspace = root, workspace
         self.settings = workspace.settings()
-        self.ctx = workspace.context(self.settings["profile"], self.settings["semester"], create=True)
+        self.ctx = workspace.context(self.settings["profile"], workspace.selected_semester(), create=True)
         self.baseline, self.course_vars = [], []
         self.course_digest = None
         root.title("SHBS Calendar")
@@ -185,7 +186,7 @@ class CalendarApp:
         form.pack(fill="x", pady=(16, 8))
         self.exc_date = tk.StringVar()
         self.exc_action = tk.StringVar(value="use")
-        self.exc_pattern = tk.StringVar(value="monday")
+        self.exc_pattern = tk.StringVar(value=self.ctx.semester.patterns[0])
         self.exc_shift = tk.StringVar(value="Inherit")
         self.exc_note = tk.StringVar()
         for col, label in enumerate(["Date · YYYY-MM-DD", "Action", "Follow pattern", "Timing"]):
@@ -308,7 +309,7 @@ class CalendarApp:
             candidate = self.workspace.context(self.profile_var.get(), self.semester_var.get(), create=True)
             candidate.courses()
             self.ctx = candidate
-            self.settings.update(profile=self.ctx.profile, semester=self.ctx.semester.id)
+            self.settings.update(profile=self.ctx.profile, semester=self.ctx.semester.id, active_semester=self.ctx.semester.id)
             self.workspace.save_settings(self.settings)
             self.load_courses()
             self.refresh_exceptions()
@@ -439,10 +440,79 @@ class CalendarApp:
             messagebox.showerror("Could not save", str(exc), parent=self.root)
 
 
-def launch(root_path=DEFAULT_ROOT):
+class SemesterSetup:
+    """Review a real definition before opening courses; never choose one silently."""
+
+    def __init__(self, root, workspace, profile=None):
+        self.root, self.workspace, self.profile = root, workspace, profile
+        root.title("SHBS Calendar · Select semester")
+        root.geometry("920x720")
+        root.minsize(760, 620)
+        root.configure(bg=BG)
+        CalendarApp._style(self)
+        self.frame = ttk.Frame(root, padding=28)
+        self.frame.pack(fill="both", expand=True)
+        ttk.Label(self.frame, text="Start with your semester", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(self.frame, text="Review the blocks and weekly arrangement before entering courses.", style="Muted.TLabel", wraplength=680).pack(anchor="w", pady=(8, 18))
+        self.semester_var = tk.StringVar()
+        picker = ttk.Combobox(self.frame, textvariable=self.semester_var, values=workspace.semesters(), state="readonly", width=30)
+        picker.pack(anchor="w", pady=(0, 14))
+        picker.bind("<<ComboboxSelected>>", lambda _: self.review())
+        footer = ttk.Frame(self.frame)
+        footer.pack(side="bottom", fill="x", pady=(14, 0))
+        self.use_button = ttk.Button(footer, text="Use this timetable", style="Accent.TButton", command=self.activate, state="disabled")
+        self.use_button.pack(side="right")
+        ttk.Label(footer, text="New semester? Define it from the terminal first.", style="Muted.TLabel", wraplength=400).pack(side="left")
+        holder = ttk.Frame(self.frame)
+        holder.pack(fill="both", expand=True)
+        self.text = tk.Text(holder, wrap="word", bg="white", fg=INK, font=(self.font, 11), relief="flat", padx=18, pady=14)
+        scroll = ttk.Scrollbar(holder, command=self.text.yview)
+        scroll.pack(side="right", fill="y")
+        self.text.configure(yscrollcommand=scroll.set)
+        self.text.pack(fill="both", expand=True)
+        self.set_text("Choose an existing semester above to review its timetable.\n\nTo define different blocks and times:\n\npython -m shbs-calendar semester new spring --blocks X,Y,Z\n\nFill semesters/spring/timetable.csv, then run:\n\npython -m shbs-calendar semester use spring\n\nClose and reopen this window after creating a new definition.")
+
+    def set_text(self, value):
+        self.text.configure(state="normal")
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", value)
+        self.text.configure(state="disabled")
+
+    def review(self):
+        try:
+            self.set_text(describe_semester(safe_child(self.workspace.root / "semesters", self.semester_var.get())))
+            self.use_button.configure(state="normal")
+        except (CalendarError, OSError) as exc:
+            self.set_text(f"This definition needs attention before use.\n\n{exc}\n\nEdit its semester.json and timetable.csv, then select it again.")
+            self.use_button.configure(state="disabled")
+
+    def activate(self):
+        try:
+            self.workspace.use_semester(self.semester_var.get(), self.profile)
+        except (CalendarError, OSError) as exc:
+            self.set_text(str(exc))
+            return
+        self.frame.destroy()
+        self.app = CalendarApp(self.root, self.workspace)
+
+
+def launch(root_path=DEFAULT_ROOT, *, semester_id=None, profile=None):
     root = tk.Tk()
     try:
-        CalendarApp(root, Workspace(root_path))
+        workspace = Workspace(root_path)
+        if semester_id:
+            workspace.use_semester(semester_id, profile)
+        elif profile and workspace.settings()["active_semester"]:
+            workspace.use_semester(workspace.selected_semester(), profile)
+        if workspace.settings()["active_semester"]:
+            try:
+                describe_semester(safe_child(workspace.root / "semesters", workspace.selected_semester()))
+            except CalendarError:
+                SemesterSetup(root, workspace, profile)
+            else:
+                CalendarApp(root, workspace)
+        else:
+            SemesterSetup(root, workspace, profile)
         root.mainloop()
     finally:
         try:

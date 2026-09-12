@@ -50,7 +50,7 @@ date,action,pattern,time_shift_minutes,note
 - A blank shift on `use` inherits the export setting. Explicit `0` or `20` **replaces** that setting. Shifts are never added twice. The CSV supports any whole-minute shift from -720 to 720 if it stays within the same day.
 - One row per date per file. Personal rows replace shared rows in full. Removing a personal row restores the school/default behavior, which may itself be a closure or different pattern.
 
-Select **No** for normal weekday scheduling in the terminal export flow, or uncheck **Follows normal weekdays** in the GUI, to apply these files. That choice requires at least one exception inside the inclusive first/last date range. Dates without exceptions keep their normal weekday pattern. Selecting **Yes** uses only the regular timetable and leaves both exception files untouched. The direct-command equivalents are `--schedule exceptions` and `--schedule weekdays`.
+Use `--schedule exceptions` in a terminal export, or uncheck **Follows normal weekdays** in the GUI, to apply these files. That choice requires at least one exception inside the inclusive first/last date range. Dates without exceptions keep their normal weekday pattern. `--schedule weekdays` (the terminal default) uses only the regular timetable and leaves both exception files untouched. Commands such as `exceptions set 2026-09-18 --follow monday` collect all their information through arguments.
 
 The GUI supports the common normal/late shifts. A CSV-edited custom shift is preserved when selecting that row. Exceptions outside the export range are retained for later exports; malformed rows are reported when exception scheduling reads the files.
 
@@ -72,11 +72,11 @@ half-day,half-a,A,09:00,09:40
 half-day,half-b,B,09:50,10:30
 ```
 
-All five headers are required. Each row is one interval, including any intended double period. Times use 24-hour `HH:MM`; end must be after start. Do not list separate period rows that should become one event. The engine does not infer merges from adjacent titles or blank spreadsheet cells.
+`pattern`, `block`, `start` and `end` are required headers. `session_id` is optional: a missing/blank ID is generated from the pattern, block and occurrence number for that block in that pattern. Each row is one interval, including any intended double period. Times use 24-hour `HH:MM`; end must be after start. Do not list separate period rows that should become one event. The engine does not infer merges from adjacent titles or blank spreadsheet cells.
 
 Add a custom half-day by adding its rows to `timetable.csv` and using action `use` with pattern `half-day` on the desired date. Custom patterns may also adjust individual times while keeping other sessions unchanged.
 
-Session IDs must be globally unique within a semester. Keep IDs stable when editing the same session's time or title so occurrence IDs remain stable. Give a new session a new ID. Missing blocks, unknown weekday patterns, duplicate IDs, invalid option overrides, and selected-event overlaps stop export.
+Session IDs must be globally unique within a semester. Keep explicit IDs stable when editing the same session's time or title so occurrence IDs remain stable. Give a new session a new ID. With generated IDs, reordering or inserting occurrences of the same block in the same pattern changes those occurrence identities; use explicit IDs when that stability matters. Advanced timing overrides refer to explicit session IDs. Missing timetable rows for any declared block, unknown weekday patterns, duplicate IDs, invalid option overrides, and selected-event overlaps stop export.
 
 For example, this configuration adjusts Thursday T while leaving Wednesday T unchanged:
 
@@ -93,11 +93,13 @@ The sequence is: select actual day's pattern → apply course timing option → 
 
 ## A new semester
 
-1. Copy the previous folder to a new ID such as `2026-27-s2`.
-2. Update `id` to match the folder, display `name`, blocks, weekday patterns, explicit intervals, and timing options. Empty the copied school exception CSV unless those dates really apply.
-3. Compare all weekdays and special sessions with the new school's timetable. Do not reuse this semester's shuffle without checking it.
-4. Select the new semester in the menu/GUI. The app creates a separate blank `courses.csv` for the selected profile and semester. Previous selections remain available.
-5. Preview a representative week and any special dates; run `validate` before exporting.
+1. Run `python -m shbs-calendar semester new 2026-27-s2 --blocks X,Y,Z`, supplying the actual block names. This creates a draft with an empty timetable. Alternatively pass `--timetable path.csv` to import complete rows immediately; invalid imports leave no installed folder.
+2. Fill `timetable.csv` with the actual pattern/block/start/end arrangements. The default `semester.json` maps Monday–Friday to `monday`–`friday` and uses UTC+08:00. Set `--weekdays mon=red,tue=blue` or `--utc-offset +08:00` when creating a different mapping/clock. Omitted weekdays have no classes. You may also edit the JSON, including optional timing choices.
+3. Run `semester show 2026-27-s2` and compare the entire timetable to the school source. `semester list` reports incomplete definitions as drafts/invalid. A draft cannot export.
+4. Run `semester use 2026-27-s2`, or review and select the valid definition in the GUI. Activation validates the definition and creates a separate blank `courses.csv`. Previous selections remain available. Use `courses edit` or `courses set X "Course name"` to select courses.
+5. Run `preview --week 2027-02-22` (substitute a suitable date) and inspect special dates. Each export needs its own dates; a whole-semester calendar is never assumed.
+
+To deliberately copy an existing arrangement, use `semester new 2026-27-s2 --copy 2026-27-s1`. This copies the definition and timing options, sets the new ID/name, and creates an empty school exception file. It never copies student selections or activates the result. Edit the copied files before selection. Existing semester folders are never replaced by `semester new`.
 
 The original workbook is a reference. No runtime spreadsheet dependency or student mapping data is committed.
 
@@ -105,6 +107,8 @@ The original workbook is a reference. No runtime spreadsheet dependency or stude
 
 Profile/folder names use letters, numbers, dashes, and underscores; names cannot escape their parent directories. Each profile has a persistent UUID in `local/profiles/<profile>/profile.json`. Preserve it when copying your local data to another machine. Profile identity, semester ID, actual date, and session ID form stable occurrence IDs. Course title, duration, export range, and export time do not affect them.
 
-`local/settings.json` stores the last context, range preset, timing, and `schedule_mode` (`weekdays` or `exceptions`). Older settings default internally to `saved`, preserving the original optional-exception behavior until an explicit choice is saved. Copy `local/` deliberately between your own machines if you want the same selections and event identities. It is not synchronized by Git. Export files and backups can contain course details and are also ignored.
+`local/settings.json` stores the explicitly chosen `active_semester`, profile, and GUI range/timing preferences. Legacy `semester` values were sometimes selected automatically, so upgrading requires `semester use ID` once. Existing course files and UUIDs are preserved. CLI commands require dates and default to normal timing/weekday scheduling regardless of saved GUI preferences; explicit `--semester ID` is a per-command selection without changing the active semester. The legacy internal `saved` schedule mode is still understood by shared services for compatibility, but terminal exports never use it as a default.
+
+Copy `local/` deliberately between your own machines if you want the same selections and event identities. It is not synchronized by Git. Export files and backups can contain course details and are also ignored.
 
 No source workbooks are needed after the timetable has been configured. No school holiday dates or late-day dates are supplied by default.

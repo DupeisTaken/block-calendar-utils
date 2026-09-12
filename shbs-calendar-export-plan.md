@@ -1,7 +1,7 @@
 # SHBS calendar export plan
 
 Date: 2026-09-13
-Status: Implemented on 2026-09-13 and updated with the `python -m shbs-calendar` command, a guided terminal export flow, explicit first/last dates, and normal-weekday versus exception scheduling. Normal weekdays ignores saved exceptions for that export without deleting them. All 43 automated tests passed on Windows; screenshots were reviewed at normal and enlarged text scales. Native macOS and actual calendar-client imports remain unverified. See `README.md` and `docs/verification.md` for the delivered behavior and validation. The sections below preserve the original implementation plan and its baseline.
+Status: Implemented, then reworked on 2026-09-13 following user feedback. The numbered terminal menu is superseded by argument-driven actions and `--dayrange` exports. Semester definitions and explicit selection precede course entry; only `courses edit` prompts for input. Normal weekdays ignores saved exceptions for that export without deleting them. See `README.md`, `docs/architecture.md` and `docs/verification.md` for current behavior and validation. The sections below preserve the original plan as historical context; guided-menu descriptions no longer describe the application. Native macOS and calendar-client imports remain unverified, with further Outlook investigation deferred at the user's request.
 
 ## Starting point and scope
 

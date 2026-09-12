@@ -30,6 +30,7 @@ class GUITests(unittest.TestCase):
         root_path = Path(self.temp.name)
         shutil.copytree(DEFAULT_ROOT / "semesters", root_path / "semesters")
         self.workspace = Workspace(root_path)
+        self.workspace.use_semester("2026-27-s1")
         self.app = CalendarApp(self.root, self.workspace)
         self.app.mode_var.set("Choose a week")
         self.app.anchor_var.set("2026-09-14")
@@ -42,6 +43,41 @@ class GUITests(unittest.TestCase):
 
     def fields(self, block):
         return dict(self.app.course_vars)[block]
+
+    def test_setup_requires_review_and_activation(self):
+        from shbs_calendar.gui import SemesterSetup
+        for child in self.root.winfo_children():
+            child.destroy()
+        workspace = Workspace(self.workspace.root / "fresh")
+        shutil.copytree(DEFAULT_ROOT / "semesters", workspace.root / "semesters")
+        setup = SemesterSetup(self.root, workspace)
+        self.assertEqual(str(setup.use_button["state"]), "disabled")
+        self.assertEqual(setup.semester_var.get(), "")
+        self.assertFalse(workspace.local.exists())
+        setup.semester_var.set("2026-27-s1")
+        setup.review()
+        self.assertEqual(str(setup.use_button["state"]), "normal")
+        self.assertIn("09:40", setup.text.get("1.0", "end"))
+        setup.activate()
+        self.assertEqual(workspace.settings()["active_semester"], "2026-27-s1")
+        self.assertEqual(len(setup.app.course_vars), 10)
+
+    def test_setup_rejects_draft_and_gui_uses_custom_blocks_and_patterns(self):
+        from shbs_calendar.gui import SemesterSetup
+        from shbs_calendar.semesters import create_semester
+        for child in self.root.winfo_children():
+            child.destroy()
+        folder = create_semester(self.workspace, "different", blocks="X,Y", weekdays="mon=red")
+        setup = SemesterSetup(self.root, self.workspace)
+        setup.semester_var.set("different")
+        setup.review()
+        self.assertEqual(str(setup.use_button["state"]), "disabled")
+        (folder / "timetable.csv").write_text("pattern,block,start,end\nred,X,09:00,09:40\nred,Y,10:00,10:40\n", encoding="utf-8")
+        setup.review()
+        setup.activate()
+        self.assertEqual([b for b, _ in setup.app.course_vars], ["X", "Y"])
+        self.assertEqual(setup.app.exc_pattern.get(), "red")
+        self.assertEqual(self.workspace.settings()["active_semester"], "different")
 
     def test_save_preview_and_export_match_shared_engine(self):
         self.fields("A")["course"].set("Advanced mathematics, 示例")

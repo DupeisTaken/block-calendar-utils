@@ -126,21 +126,27 @@ def load_semester(folder: Path) -> Semester:
         sid, name, blocks = config["id"], config["name"], config["blocks"]
         if sid != folder.name or not isinstance(name, str) or not name:
             raise CalendarError("id must match the semester folder; name must be nonempty.")
-        if not isinstance(blocks, list) or not blocks or not all(isinstance(b, str) and b for b in blocks) or len(set(blocks)) != len(blocks):
+        if not isinstance(blocks, list) or not blocks or not all(isinstance(b, str) and b.strip() == b and b and not any(ord(c) < 32 for c in b) for b in blocks) or len(set(blocks)) != len(blocks):
             raise CalendarError("blocks must be a nonempty list of unique names.")
         offset = config["utc_offset_minutes"]
         if type(offset) is not int or not -1439 <= offset <= 1439:
             raise CalendarError("utc_offset_minutes must be an integer between -1439 and 1439.")
         clock = timezone(timedelta(minutes=offset))
         days = config["weekdays"]
-        if not isinstance(days, dict) or not all(k in [str(i) for i in range(7)] and isinstance(v, str) for k, v in days.items()):
+        if not isinstance(days, dict) or not days or not all(k in [str(i) for i in range(7)] and isinstance(v, str) and v for k, v in days.items()):
             raise CalendarError("weekdays must map 0 (Monday) through 6 (Sunday) to pattern names.")
         weekdays = {int(k): v for k, v in days.items()}
         sessions = []
         seen = set()
-        for line, row in read_rows(folder / "timetable.csv", SESSION_FIELDS, SESSION_FIELDS):
+        occurrences = {}
+        for line, row in read_rows(folder / "timetable.csv", SESSION_FIELDS, ("pattern", "block", "start", "end")):
             try:
-                session = Session(row["pattern"], row["session_id"], row["block"], parse_time(row["start"]), parse_time(row["end"]))
+                # Simple CSVs need no technical IDs. Derive identity from block
+                # occurrence, not clock times, so timing edits retain event IDs.
+                key = (row["pattern"], row["block"])
+                occurrences[key] = occurrences.get(key, 0) + 1
+                automatic_id = "auto-" + hashlib.sha256(repr((*key, occurrences[key])).encode()).hexdigest()[:24]
+                session = Session(row["pattern"], row.get("session_id") or automatic_id, row["block"], parse_time(row["start"]), parse_time(row["end"]))
                 if not session.pattern or not session.session_id or session.session_id in seen:
                     raise CalendarError("pattern and globally unique session_id are required.")
                 if session.block not in blocks or session.start >= session.end:
@@ -152,6 +158,8 @@ def load_semester(folder: Path) -> Semester:
         patterns = {s.pattern for s in sessions}
         if not sessions or set(weekdays.values()) - patterns:
             raise CalendarError("timetable is empty or weekdays refer to an unknown pattern.")
+        if set(blocks) - {s.block for s in sessions}:
+            raise CalendarError("Add timetable rows for every defined block: " + ", ".join(sorted(set(blocks) - {s.block for s in sessions})))
         options = config.get("timing_options", {})
         if not isinstance(options, dict) or set(options) - set(blocks):
             raise CalendarError("timing_options must map known blocks to choices.")
