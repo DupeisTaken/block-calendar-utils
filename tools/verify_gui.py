@@ -1,0 +1,95 @@
+"""Developer-only screenshot smoke test. Requires Pillow, never used by the app.
+
+Uses one application-owned Tk window and temporary synthetic data. Captures its
+client area, then destroys the window and cleans the temporary workspace.
+"""
+
+import argparse
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from shbs_calendar.app import DEFAULT_ROOT, Workspace
+from shbs_calendar.gui import CalendarApp
+
+
+def main():
+    import tkinter as tk
+    from PIL import ImageGrab
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scale", type=float, default=1.333)
+    parser.add_argument("--output", type=Path, default=DEFAULT_ROOT / "local/qa")
+    args = parser.parse_args()
+    args.output.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="shbs-visual-") as tmp:
+        root_path = Path(tmp)
+        shutil.copytree(DEFAULT_ROOT / "semesters", root_path / "semesters")
+        root = tk.Tk()
+        root.tk.call("tk", "scaling", args.scale)
+        app = CalendarApp(root, Workspace(root_path))
+        names = ["Chemistry", "Study Hall", "Advanced Mathematics", "World History", "Physics", "Music Theory", "English Language", "Physical Education", "TOEFL Study Hall", "Creative Writing"]
+        for (block, fields), name in zip(app.course_vars, names):
+            fields["course"].set(name)
+            if block == "T":
+                fields["timing_option"].set("Study hall")
+        app.mode_var.set("Choose a week")
+        app.anchor_var.set("2026-09-14")
+        app.update_date_fields()
+        app.exc_date.set("2026-09-18")
+        app.exc_pattern.set("monday")
+        app.exc_note.set("Friday follows Monday's classes")
+        app.save_exception()
+        app.save()
+        root.geometry("1120x800+30+30")
+        root.lift()
+
+        def capture(name):
+            root.update_idletasks()
+            button = app.export_button
+            assert button.winfo_rooty() + button.winfo_height() <= root.winfo_rooty() + root.winfo_height(), "Export button clipped"
+            if name == "exceptions":
+                button = app.save_date_button
+                assert button.winfo_rooty() + button.winfo_height() <= app.exceptions_tab.winfo_rooty() + app.exceptions_tab.winfo_height(), "Exception save button clipped"
+            if sys.platform == "win32":
+                # Capture only our window even when another app occludes it.
+                image = ImageGrab.grab(window=int(root.frame(), 16))
+            else:
+                x, y = root.winfo_rootx(), root.winfo_rooty()
+                image = ImageGrab.grab(bbox=(x, y, x + root.winfo_width(), y + root.winfo_height()))
+            path = args.output / f"{name}-{args.scale}.png"
+            image.save(path)
+            print(path)
+
+        def step(number=0):
+            try:
+                if number == 0:
+                    capture("courses")
+                    app.preview()
+                elif number == 1:
+                    capture("preview")
+                    app.tabs.select(app.exceptions_tab)
+                else:
+                    capture("exceptions")
+                    root.destroy()
+                    return
+                root.after(400, lambda: step(number + 1))
+            except Exception:
+                root.destroy()
+                raise
+
+        root.after(500, step)
+        try:
+            root.mainloop()
+        finally:
+            try:
+                root.destroy()
+            except tk.TclError:
+                pass
+
+
+if __name__ == "__main__":
+    main()

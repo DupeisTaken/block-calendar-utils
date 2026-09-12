@@ -1,0 +1,3 @@
+# Optional verification tools only. The application needs no pip packages.
+icalendar==7.3.0
+Pillow>=11.2,<13

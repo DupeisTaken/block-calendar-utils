@@ -1,0 +1,11 @@
+block,course,location,teacher,enabled,timing_option
+A,Example Chemistry,Lab 1,Example Teacher,true,
+B,Study Hall,,,true,
+C,Example Mathematics,,,true,
+D,Example History,,,true,
+E,Example Physics,,,true,
+F,Example Music,,,true,
+G,Example English,,,true,
+S,Example Physical Education,,,true,
+T,TOEFL Study Hall,,,true,study_hall
+El,Example Elective,,,true,

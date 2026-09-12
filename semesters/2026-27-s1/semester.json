@@ -1,0 +1,13 @@
+{
+  "id": "2026-27-s1",
+  "name": "2026–27 · Semester 1",
+  "utc_offset_minutes": 480,
+  "blocks": ["A", "B", "C", "D", "E", "F", "G", "S", "T", "El"],
+  "weekdays": {"0": "monday", "1": "tuesday", "2": "wednesday", "3": "thursday", "4": "friday"},
+  "timing_options": {
+    "T": {
+      "study_hall": {"thu-t": {"end": "16:25"}},
+      "toefl": {"thu-t": {"end": "17:05"}}
+    }
+  }
+}

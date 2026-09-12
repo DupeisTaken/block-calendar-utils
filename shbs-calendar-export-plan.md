@@ -1,7 +1,7 @@
 # SHBS calendar export plan
 
 Date: 2026-09-13
-Status: Plan updated with the user's answers, including selectable T timing. No application code has been written.
+Status: Implemented on 2026-09-13 with terminal and GUI workflows, configurable CSV/JSON data, both T choices, and date exceptions. All 35 automated tests passed on Windows; screenshots were reviewed at normal and enlarged text scales. Native macOS and actual calendar-client imports remain unverified. See `README.md` and `docs/verification.md` for the delivered behavior and validation. The sections below preserve the agreed implementation plan and its original baseline.
 
 ## Starting point and scope
 
