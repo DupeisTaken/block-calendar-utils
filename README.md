@@ -9,31 +9,33 @@ Install **Python 3.11 or newer**, download/clone this project, and open a termin
 Windows:
 
 ```powershell
-python -m shbs_calendar
+python -m shbs-calendar
 ```
 
 macOS:
 
 ```sh
-python3 -m shbs_calendar
+python3 -m shbs-calendar
 ```
 
 For the GUI, add `gui`:
 
 ```powershell
-python -m shbs_calendar gui
+python -m shbs-calendar gui
 ```
 
-On macOS use `python3`. On Windows you can also double-click `shbs-gui.pyw` if `.pyw` is associated with Python. The GUI needs Tkinter, normally supplied by the Python.org desktop installers. Check your installation with `python -m tkinter` (or `python3 -m tkinter`); close its test window afterward. The terminal workflow works without Tkinter.
+On macOS use `python3`. The old `python -m shbs_calendar` command still works for existing scripts. On Windows you can also double-click `shbs-gui.pyw` if `.pyw` is associated with Python. The GUI needs Tkinter, normally supplied by the Python.org desktop installers. Check your installation with `python -m tkinter` (or `python3 -m tkinter`); close its test window afterward. The terminal workflow works without Tkinter.
 
 ## Everyday workflow
 
 1. Enter a name for each block once. Leave unused blocks blank. Enter **Study Hall** to include a study period. For T, choose **Study hall** or **TOEFL lesson**.
-2. Choose **Dates and timing** in the menu, or **Dates & preview** in the GUI. Select This week, Next week, Choose a week, or Custom range. Three weeks is simply a week count of `3`.
-3. Add any date exceptions: no classes, another weekday's timetable, or a timing change.
-4. Preview and export. Files go into `exports/` unless you choose another destination.
+2. Choose **1 Export calendar**. The guided flow asks for **first date and last date** (both included), then normal/late timing. This week, Next week, and multi-week shortcuts remain available.
+3. Answer **Does this range follow the normal weekday schedule?** Choose Yes to use only the normal timetable. Choose No to review/add exceptions, such as no classes, another weekday's timetable, or a timing change. At least one exception must fall inside the selected dates. For ranges of up to 31 days, select the exception date by number.
+4. Review the short export summary, optionally view the full timetable, and export. You can change dates/timing or exceptions from that same review screen. Files go into `exports/` unless you choose another destination.
 
-The menu remembers your profile, semester, dates, and normal/late choice. The GUI saves date choices when you preview/export. Relative choices such as This week recalculate when used again; the preview always shows actual dates. Week ranges are Monday–Sunday, with weekends empty unless a makeup day is added. Start and end dates are both included.
+The simplified main menu is Export calendar, My courses, Saved date exceptions, Semester/profile, Open GUI, and Quit. Within the export flow, `0` returns to the main menu; date-entry prompts also accept `b`. Invalid dates are retried without losing the first valid date. The menu remembers export dates, timing, and weekday/exception choice after a successful export. Saved exception edits are retained even if you return to the menu without exporting.
+
+In the GUI, **Dates & preview** has editable first/last date fields. Week shortcuts fill the endpoints; editing an endpoint selects an explicit date range. Uncheck **Follows normal weekdays** to open the exception editor. Preview/export saves the date and schedule choices. Relative presets recalculate when used again. Week ranges are Monday–Sunday, with weekends empty unless a makeup day is applied.
 
 Course names, optional rooms/teachers, and the T choice are stored in:
 
@@ -57,7 +59,7 @@ P&B, CAS, clubs, and meals are excluded. Only named, enabled classes/study perio
 
 For example, to make Friday 18 September use Monday's classes, add a date exception with date `2026-09-18`, action `use`, and pattern `monday`. The events stay on Friday. Timing can inherit the export setting, be Normal, or be Late. This does not change other days.
 
-School-wide exceptions are in `semesters/2026-27-s1/exceptions.csv`; your personal file is next to `courses.csv`. One personal row replaces the school row for the same date, and the preview reports that replacement. No holidays or late days are guessed automatically.
+School-wide exceptions are in `semesters/2026-27-s1/exceptions.csv`; your personal file is next to `courses.csv`. With exception scheduling selected, one personal row replaces the school row for the same date, and the preview reports that replacement. Unlisted dates still follow their usual weekday pattern. Selecting normal weekdays ignores both exception files for that export, without deleting or changing them. No holidays or late days are guessed automatically.
 
 See [configuration details](docs/configuration.md) for CSV formats, custom half-days, and adding a new semester.
 
@@ -67,25 +69,30 @@ Use `python3` instead of `python` on macOS. Commands never prompt, and do not ch
 
 ```sh
 # Create your blank profile files, then edit courses.csv.
-python -m shbs_calendar init --profile me
+python -m shbs-calendar init --profile me
 
 # A selected week, or three weeks starting with that week.
-python -m shbs_calendar preview --week 2026-09-14
-python -m shbs_calendar export --week 2026-09-14 --weeks 3
+python -m shbs-calendar preview --week 2026-09-14
+python -m shbs-calendar export --week 2026-09-14 --weeks 3
 
 # Part of a week; both endpoint dates are included.
-python -m shbs_calendar export --start 2026-09-16 --end 2026-09-18
+python -m shbs-calendar export --first-date 2026-09-16 --last-date 2026-09-18 --schedule weekdays
+
+# Use saved date exceptions (requires at least one within this range).
+python -m shbs-calendar export --first-date 2026-09-16 --last-date 2026-09-18 --schedule exceptions
 
 # Override remembered timing for this export.
-python -m shbs_calendar export --next-week --late
-python -m shbs_calendar export --this-week --normal
+python -m shbs-calendar export --next-week --late
+python -m shbs-calendar export --this-week --normal
 
 # Check inputs and the resulting schedule without writing a calendar.
-python -m shbs_calendar validate --week 2026-09-14
+python -m shbs-calendar validate --week 2026-09-14
 
 # Explicit output; replacing an existing file requires --overwrite.
-python -m shbs_calendar export --week 2026-09-14 -o exports/my-week.ics --overwrite
+python -m shbs-calendar export --week 2026-09-14 -o exports/my-week.ics --overwrite
 ```
+
+`--start`/`--end` remain short aliases for `--first-date`/`--last-date`. `--normal` controls class times, while `--schedule weekdays` controls whether date exceptions apply. If `--schedule` is omitted, commands use the saved schedule choice; older profiles without a choice retain the original behavior of applying saved exceptions when present. Scripts never open an editor: add exceptions through the menu/GUI or CSV first.
 
 Use `--profile NAME` and `--semester ID` after a command to select other saved data. Use `--root PATH` **before** the command to point at another complete project/data folder. `--help` lists the commands. Exit codes: `0` success, `2` invalid input/write failure, `130` cancelled terminal input.
 

@@ -28,13 +28,15 @@ class Workspace:
 
     def settings(self) -> dict:
         settings = read_json(self.settings_path) if self.settings_path.exists() else {}
-        defaults = {"profile": "me", "semester": self.semesters()[0], "mode": "this", "anchor": "", "end": "", "weeks": 1, "late": False}
+        defaults = {"profile": "me", "semester": self.semesters()[0], "mode": "this", "anchor": "", "end": "", "weeks": 1, "late": False, "schedule_mode": "saved"}
         defaults.update(settings)
         for key in ("profile", "semester", "mode", "anchor", "end"):
             if not isinstance(defaults[key], str):
                 raise CalendarError(f"settings.json: {key} must be text.")
         if type(defaults["weeks"]) is not int or type(defaults["late"]) is not bool:
             raise CalendarError("settings.json: weeks must be an integer and late must be true/false.")
+        if defaults["schedule_mode"] not in {"saved", "weekdays", "exceptions"}:
+            raise CalendarError("settings.json: schedule_mode must be weekdays, exceptions, or saved.")
         return defaults
 
     def save_settings(self, settings: dict) -> None:
@@ -83,10 +85,28 @@ class Context:
     def save_exceptions(self, items, expected):
         save_overrides(self.exceptions_path, items, self.semester, expected)
 
+    def dates(self, settings: dict):
+        return date_range(settings["mode"], settings.get("anchor", ""), settings.get("weeks", 1), settings.get("end", ""), today=datetime.now(self.semester.clock).date())
+
+    def overrides_in_range(self, first, last):
+        school = load_overrides(self.folder / "exceptions.csv", self.semester)
+        merged = {item.date: item for item in school + self.exceptions()}
+        return [item for day, item in sorted(merged.items()) if first <= day <= last]
+
     def preview(self, settings: dict):
-        first, last = date_range(settings["mode"], settings.get("anchor", ""), settings.get("weeks", 1), settings.get("end", ""), today=datetime.now(self.semester.clock).date())
-        return build_preview(self.semester, self.courses(), self.identity, first, last, 20 if settings.get("late", False) else 0,
-                             load_overrides(self.folder / "exceptions.csv", self.semester), self.exceptions())
+        first, last = self.dates(settings)
+        mode = settings.get("schedule_mode", "saved")
+        if mode not in {"weekdays", "exceptions", "saved"}:
+            raise CalendarError("Choose a weekday or exception schedule.")
+        # Regular weekdays is an export-only switch: never erase saved dates.
+        # 'saved' preserves the behavior of scripts/settings from version 1.0.
+        school = [] if mode == "weekdays" else load_overrides(self.folder / "exceptions.csv", self.semester)
+        personal = [] if mode == "weekdays" else self.exceptions()
+        if mode == "exceptions" and not any(first <= item.date <= last for item in school + personal):
+            raise CalendarError("Add at least one exception inside the export's first and last dates, or choose the normal weekday schedule.")
+        preview = build_preview(self.semester, self.courses(), self.identity, first, last, 20 if settings.get("late", False) else 0, school, personal)
+        preview.schedule_mode = mode
+        return preview
 
     def export(self, preview, output: Path | None = None, *, overwrite: bool = False) -> Path:
         output = output or self.workspace.root / "exports" / f"{self.profile}-{self.semester.id}-{preview.start}-{preview.end}.ics"

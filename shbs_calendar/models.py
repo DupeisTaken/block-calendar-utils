@@ -72,3 +72,4 @@ class Preview:
     start: date
     end: date
     clock: str
+    schedule_mode: str = "saved"

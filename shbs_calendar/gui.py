@@ -10,7 +10,7 @@ from .schedule import preview_text
 from .storage import digest, parse_date
 
 BG, INK, MUTED, ACCENT = "#f4f5f1", "#1b302d", "#626e69", "#24695b"
-MODES = {"This week": "this", "Next week": "next", "Choose a week": "week", "Custom range": "custom"}
+MODES = {"First and last dates": "custom", "This week": "this", "Next week": "next", "Choose a week": "week"}
 
 
 def option_label(option):
@@ -128,24 +128,35 @@ class CalendarApp:
         self.end_var = tk.StringVar(value=self.settings.get("end", ""))
         self.weeks_var = tk.StringVar(value=str(self.settings.get("weeks", 1)))
         self.late_var = tk.BooleanVar(value=self.settings.get("late", False))
-        mode = ttk.Combobox(row, textvariable=self.mode_var, values=list(MODES), state="readonly", width=17)
+        first, last = self.ctx.dates(self.settings)
+        saved_mode = self.settings.get("schedule_mode", "saved")
+        self.weekdays_var = tk.BooleanVar(value=saved_mode == "weekdays" or (saved_mode == "saved" and not self.ctx.overrides_in_range(first, last)))
+        mode = ttk.Combobox(row, textvariable=self.mode_var, values=list(MODES), state="readonly", width=20)
         mode.pack(side="left")
-        mode.bind("<<ComboboxSelected>>", lambda _: self.update_date_fields())
+        mode.bind("<<ComboboxSelected>>", lambda _: self.run(self.update_date_fields))
         ttk.Label(row, text="Weeks").pack(side="left", padx=(12, 6))
-        self.weeks_entry = ttk.Spinbox(row, from_=1, to=520, textvariable=self.weeks_var, width=4)
+        self.weeks_entry = ttk.Spinbox(row, from_=1, to=520, textvariable=self.weeks_var, width=4, command=lambda: self.run(self.update_date_fields))
+        self.weeks_entry.bind("<Return>", lambda _: self.run(self.update_date_fields))
         self.weeks_entry.pack(side="left")
         ttk.Checkbutton(row, text="Late (+20 min)", variable=self.late_var).pack(side="left", padx=16)
         ttk.Button(row, text="Refresh preview", command=lambda: self.run(self.preview)).pack(side="right")
         dates = ttk.Frame(self.preview_tab)
         dates.pack(fill="x", pady=12)
-        ttk.Label(dates, text="Week date / start").pack(side="left")
+        ttk.Label(dates, text="First date").pack(side="left")
         self.anchor_entry = ttk.Entry(dates, textvariable=self.anchor_var, width=13)
         self.anchor_entry.pack(side="left", padx=8)
-        ttk.Label(dates, text="End (included)").pack(side="left", padx=(12, 0))
+        ttk.Label(dates, text="Last date (included)").pack(side="left", padx=(12, 0))
         self.end_entry = ttk.Entry(dates, textvariable=self.end_var, width=13)
         self.end_entry.pack(side="left", padx=8)
         ttk.Label(dates, text="YYYY-MM-DD", style="Muted.TLabel").pack(side="left", padx=8)
-        ttk.Label(self.preview_tab, text="Weeks run Monday–Sunday. Exceptions can add school days on weekends.", style="Muted.TLabel").pack(anchor="w", pady=(0, 12))
+        for entry in (self.anchor_entry, self.end_entry):
+            entry.bind("<KeyRelease>", lambda _: self.mark_custom_dates())
+            entry.bind("<<Paste>>", lambda _: self.root.after_idle(self.mark_custom_dates))
+            entry.bind("<<Cut>>", lambda _: self.root.after_idle(self.mark_custom_dates))
+        schedule_row = ttk.Frame(self.preview_tab)
+        schedule_row.pack(fill="x", pady=(0, 12))
+        ttk.Checkbutton(schedule_row, text="Follows normal weekdays (ignore saved exceptions)", variable=self.weekdays_var, command=self.schedule_changed).pack(side="left")
+        ttk.Button(schedule_row, text="Edit exceptions", command=self.open_exceptions).pack(side="right")
         text_frame = ttk.Frame(self.preview_tab)
         text_frame.pack(fill="both", expand=True)
         self.preview_widget = tk.Text(text_frame, wrap="word", font=(self.font, 11), bg="white", fg=INK, relief="flat", padx=18, pady=14, height=10)
@@ -313,12 +324,32 @@ class CalendarApp:
 
     def update_date_fields(self):
         mode = MODES[self.mode_var.get()]
-        self.anchor_entry.configure(state="normal" if mode in {"week", "custom"} else "disabled")
-        self.end_entry.configure(state="normal" if mode == "custom" else "disabled")
         self.weeks_entry.configure(state="disabled" if mode == "custom" else "normal")
+        # Presets fill both endpoints. Editing either date turns the range into
+        # an explicit range, so visible values always match the exported dates.
+        if mode != "custom":
+            first, last = self.ctx.dates(self.range_settings())
+            self.anchor_var.set(str(first))
+            self.end_var.set(str(last))
+        self.displayed_dates = (self.anchor_var.get(), self.end_var.get())
+
+    def mark_custom_dates(self):
+        if (self.anchor_var.get(), self.end_var.get()) != self.displayed_dates:
+            self.mode_var.set("First and last dates")
+            self.weeks_entry.configure(state="disabled")
+
+    def schedule_changed(self):
+        if not self.weekdays_var.get():
+            self.open_exceptions()
+
+    def open_exceptions(self):
+        self.weekdays_var.set(False)
+        self.refresh_exceptions()
+        self.tabs.select(self.exceptions_tab)
+        self.status.set("Add or review exceptions within the first and last dates, then return to Dates & preview.")
 
     def range_settings(self):
-        return dict(self.settings, mode=MODES[self.mode_var.get()], anchor=self.anchor_var.get().strip(), end=self.end_var.get().strip(), weeks=1 if MODES[self.mode_var.get()] == "custom" else int(self.weeks_var.get()), late=self.late_var.get())
+        return dict(self.settings, mode=MODES[self.mode_var.get()], anchor=self.anchor_var.get().strip(), end=self.end_var.get().strip(), weeks=1 if MODES[self.mode_var.get()] == "custom" else int(self.weeks_var.get()), late=self.late_var.get(), schedule_mode="weekdays" if self.weekdays_var.get() else "exceptions")
 
     def set_preview_text(self, text):
         self.preview_widget.configure(state="normal")
@@ -329,6 +360,8 @@ class CalendarApp:
     def preview(self):
         if self.profile_var.get() != self.ctx.profile or self.semester_var.get() != self.ctx.semester.id:
             raise CalendarError("Click Switch / create to apply the profile or semester before previewing/exporting.")
+        if MODES[self.mode_var.get()] != "custom":
+            self.update_date_fields()
         self.save()
         settings = self.range_settings()
         preview = self.ctx.preview(settings)
@@ -388,6 +421,7 @@ class CalendarApp:
         item = DayOverride(day, action, self.exc_pattern.get() if action == "use" else "", shift, self.exc_note.get().strip())
         items = [i for i in self.exception_items if i.date != day] + [item]
         self.ctx.save_exceptions(items, self.exception_digest)
+        self.weekdays_var.set(False)
         self.refresh_exceptions()
         self.status.set(f"Saved exception for {day}. Refresh the preview to see it.")
 

@@ -10,7 +10,8 @@ from unittest.mock import patch
 
 from shbs_calendar.app import DEFAULT_ROOT, Workspace
 from shbs_calendar.cli import main
-from shbs_calendar.models import Course
+from shbs_calendar.models import Course, DayOverride
+from datetime import date
 from shbs_calendar.storage import digest
 
 
@@ -24,7 +25,7 @@ class CLITests(unittest.TestCase):
         self.temp.cleanup()
 
     def run_cli(self, *args, input=""):
-        return subprocess.run([sys.executable, "-m", "shbs_calendar", "--root", str(self.root), *args], input=input, capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT, env=__import__("os").environ | {"PYTHONIOENCODING": "utf-8"})
+        return subprocess.run([sys.executable, "-m", "shbs-calendar", "--root", str(self.root), *args], input=input, capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT, env=__import__("os").environ | {"PYTHONIOENCODING": "utf-8"})
 
     def init(self):
         result = self.run_cli("init", "--profile", "student")
@@ -85,6 +86,72 @@ class CLITests(unittest.TestCase):
         with patch.dict(sys.modules, {"tkinter": None}):
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(main(["--root", str(self.root), "init"]), 0)
+
+    def test_hyphenated_entry_and_legacy_entry(self):
+        result = self.run_cli("--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("python -m shbs-calendar", result.stdout)
+        legacy = subprocess.run([sys.executable, "-m", "shbs_calendar", "--help"], capture_output=True, timeout=10, cwd=DEFAULT_ROOT)
+        self.assertEqual(legacy.returncode, 0)
+
+    def test_first_last_flags_and_schedule_choice_preserve_exceptions(self):
+        ctx = self.init()
+        ctx.save_exceptions([DayOverride(date(2026, 9, 17), "off")], digest(ctx.exceptions_path))
+        original = ctx.exceptions_path.read_bytes()
+        args = ["export", "--first-date", "2026-09-17", "--last-date", "2026-09-18", "--schedule"]
+        for mode, count in [("weekdays", 2), ("exceptions", 1)]:
+            path = self.root / f"{mode}.ics"
+            result = self.run_cli(*args, mode, "-o", str(path))
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(path.read_bytes().count(b"BEGIN:VEVENT"), count)
+        self.assertEqual(ctx.exceptions_path.read_bytes(), original)
+        no_match = self.run_cli("export", "--first-date", "2026-09-21", "--last-date", "2026-09-25", "--schedule", "exceptions")
+        self.assertEqual(no_match.returncode, 2)
+        self.assertIn("at least one exception", no_match.stderr)
+
+    def test_guided_export_endpoints_and_regular_weekdays(self):
+        ctx = self.init()
+        ctx.save_exceptions([DayOverride(date(2026, 9, 17), "off")], digest(ctx.exceptions_path))
+        output = self.root / "guided.ics"
+        result = self.run_cli(input="\n".join(["1", "1", "2026-09-16", "2026-09-18", "1", "1", "1", str(output), "0"]) + "\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(output.read_bytes().count(b"BEGIN:VEVENT"), 3)
+        self.assertIn("Does this range follow", result.stdout)
+        settings = Workspace(self.root).settings()
+        self.assertEqual((settings["anchor"], settings["end"], settings["schedule_mode"]), ("2026-09-16", "2026-09-18", "weekdays"))
+
+    def test_guided_export_collects_numbered_date_exception(self):
+        self.init()
+        output = self.root / "exception.ics"
+        answers = ["1", "1", "2026-09-16", "2026-09-18", "1", "2", # range and No
+                   "1", "3", "2", "1", "1", "Makeup", "3",       # add Friday -> Monday, done
+                   "1", str(output), "0"]
+        result = self.run_cli(input="\n".join(answers) + "\n")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn(b"DTSTART:20260918T014000Z", output.read_bytes())
+        self.assertIn("3 Fri 2026-09-18", result.stdout)
+        self.assertEqual(Workspace(self.root).settings()["schedule_mode"], "exceptions")
+
+    def test_guided_invalid_dates_retry_and_back_navigation(self):
+        self.init()
+        output = self.root / "corrected.ics"
+        answers = ["1", "1", "invalid", "2026-09-17", "2026-09-16", "2026-09-18", "1", "1", "1", str(output), "0"]
+        result = self.run_cli(input="\n".join(answers) + "\n")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(output.read_bytes().count(b"BEGIN:VEVENT"), 2)
+        self.assertIn("end date must be on or after", result.stdout)
+        settings = Workspace(self.root).settings_path.read_bytes()
+        result = self.run_cli(input="1\n0\n0\n")
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(Workspace(self.root).settings_path.read_bytes(), settings)
+
+    def test_declining_weekdays_requires_exception_or_back(self):
+        self.init()
+        answers = ["1", "1", "2026-09-16", "2026-09-18", "1", "2", "3", "0", "0"]
+        result = self.run_cli(input="\n".join(answers) + "\n")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("No exceptions in this range yet", result.stdout)
+        self.assertFalse((self.root / "exports").exists())
 
 
 if __name__ == "__main__":

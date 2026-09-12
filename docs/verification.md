@@ -4,11 +4,11 @@ Date: 2026-09-13. Host: Windows, Python 3.14.5, Tk 8.6.
 
 ## Automated checks
 
-**35 tests passed**, with native Tk tests enabled and the independent `icalendar` parser installed in a temporary local virtual environment:
+**43 tests passed**, with native Tk tests enabled and the independent `icalendar` parser installed in a local verification environment:
 
 - 20 core/storage tests: all five weekdays, 200 minutes per A–G block, both Thursday T options, late shifts, partial and multi-week ranges, Friday following Monday, weekend makeup, closures, exception precedence, custom patterns, a different semester, invalid inputs, CSV round trips, stale saves, and interrupted-write preservation.
-- 6 terminal tests: first-run selection, repeat menu, EOF cancellation, direct CSV changes, date flags, preview/export, overwrite behavior, paths with spaces, and operation without importing Tkinter.
-- 7 native Tk controller tests: save/preview/export parity with shared services, both T choices, external CSV conflicts, exceptions, invalid dates, cancellation, export errors, and profile switching.
+- 12 terminal tests: first-run selection, repeat menu, EOF cancellation, direct CSV changes, date flags, preview/export, overwrite behavior, paths with spaces, and operation without importing Tkinter. New cases cover the hyphenated command, first/last date flags, weekday/exception choice, preservation of ignored exceptions, complete guided exports, numbered exception dates, invalid-date retries, and back navigation.
+- 9 native Tk controller tests: save/preview/export parity with shared services, both T choices, external CSV conflicts, exceptions, invalid dates, cancellation, export errors, and profile switching. New cases verify editable endpoints, conversion from a preset to explicit dates, and weekday/exception switching without deleting saved exceptions.
 - 2 independent parser tests: exact round-trip titles, locations, descriptions, UTC instants, unique IDs, Unicode/escaped text, and an empty valid calendar. The three-week exception fixture produced the independently expected 74 events.
 
 Command used in the temporary environment:
@@ -23,6 +23,8 @@ The temporary environment and Python caches remain ignored in this checkout: aut
 ## Visual checks
 
 Reviewed actual application-window screenshots for Courses, Dates & preview, and Exceptions at Tk scaling 1.333 and 2.0. All screenshots used synthetic selections. Only one application-owned window was open at a time and it was destroyed after capture.
+
+After the terminal-navigation update, rechecked the GUI's first/last date fields, normal-weekday checkbox, exception-edit action, and preview at both scales. Controls and the export button remain visible.
 
 Screenshot review found and fixed clipping of the export bar and exception editor at enlarged text sizes. The screenshot helper now asserts that Export and Save date remain visible. Course fields scroll, including when keyboard focus moves to a lower row. All ten course rows, including T's timing choice, fit at the standard tested scale. Larger text uses the scrollable course area.
 

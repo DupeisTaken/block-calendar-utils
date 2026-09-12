@@ -85,6 +85,9 @@ class GUITests(unittest.TestCase):
         friday = result.events[-1]
         self.assertEqual(friday.start.strftime("%H:%M"), "09:40")
         self.app.remove_exception()
+        with self.assertRaisesRegex(CalendarError, "at least one exception"):
+            self.app.preview()
+        self.app.weekdays_var.set(True)
         self.assertEqual(self.app.preview().events[-1].start.strftime("%H:%M"), "10:30")
 
     def test_invalid_dates_and_save_cancellation(self):
@@ -116,6 +119,32 @@ class GUITests(unittest.TestCase):
         self.app.switch()
         self.assertEqual(self.app.ctx.profile, "another")
         self.assertFalse(any(c.enabled for c in self.app.ctx.courses()))
+
+    def test_explicit_dates_editable_and_preset_becomes_custom(self):
+        self.assertEqual(str(self.app.anchor_entry.cget("state")), "normal")
+        self.assertEqual(str(self.app.end_entry.cget("state")), "normal")
+        self.assertEqual(self.app.end_var.get(), "2026-09-20")
+        self.app.anchor_var.set("2026-09-16")
+        self.app.end_var.set("2026-09-18")
+        self.app.mark_custom_dates()
+        self.assertEqual(self.app.mode_var.get(), "First and last dates")
+        self.fields("A")["course"].set("Math")
+        preview = self.app.preview()
+        self.assertEqual((str(preview.start), str(preview.end)), ("2026-09-16", "2026-09-18"))
+
+    def test_weekday_choice_ignores_saved_exception_without_deleting_it(self):
+        self.fields("A")["course"].set("Math")
+        self.app.exc_date.set("2026-09-18")
+        self.app.exc_pattern.set("monday")
+        self.app.save_exception()
+        original = self.app.ctx.exceptions_path.read_bytes()
+        self.app.weekdays_var.set(True)
+        self.assertEqual(self.app.preview().events[-1].start.strftime("%H:%M"), "10:30")
+        self.app.weekdays_var.set(False)
+        self.app.schedule_changed()
+        self.assertEqual(self.app.tabs.select(), str(self.app.exceptions_tab))
+        self.assertEqual(self.app.preview().events[-1].start.strftime("%H:%M"), "09:40")
+        self.assertEqual(self.app.ctx.exceptions_path.read_bytes(), original)
 
 
 if __name__ == "__main__":

@@ -112,6 +112,10 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
 
 def preview_text(preview: Preview) -> str:
     lines = [f"{preview.start} to {preview.end} · {len(preview.events)} events · {preview.clock}"]
+    if preview.schedule_mode == "weekdays":
+        lines.append("Schedule: normal weekdays. Saved exceptions are not applied to this export.")
+    elif preview.schedule_mode == "exceptions":
+        lines.append("Schedule: weekdays with your date exceptions.")
     if preview.excluded:
         lines.append("Unselected blocks: " + ", ".join(preview.excluded))
     if preview.notes:

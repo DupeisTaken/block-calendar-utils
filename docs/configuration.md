@@ -50,7 +50,9 @@ date,action,pattern,time_shift_minutes,note
 - A blank shift on `use` inherits the export setting. Explicit `0` or `20` **replaces** that setting. Shifts are never added twice. The CSV supports any whole-minute shift from -720 to 720 if it stays within the same day.
 - One row per date per file. Personal rows replace shared rows in full. Removing a personal row restores the school/default behavior, which may itself be a closure or different pattern.
 
-The GUI supports the common normal/late shifts. A CSV-edited custom shift is preserved when selecting that row. Exceptions outside the export range are retained for later exports; malformed rows are still reported.
+Select **No** for normal weekday scheduling in the terminal export flow, or uncheck **Follows normal weekdays** in the GUI, to apply these files. That choice requires at least one exception inside the inclusive first/last date range. Dates without exceptions keep their normal weekday pattern. Selecting **Yes** uses only the regular timetable and leaves both exception files untouched. The direct-command equivalents are `--schedule exceptions` and `--schedule weekdays`.
+
+The GUI supports the common normal/late shifts. A CSV-edited custom shift is preserved when selecting that row. Exceptions outside the export range are retained for later exports; malformed rows are reported when exception scheduling reads the files.
 
 ## Semester timetable
 
@@ -103,6 +105,6 @@ The original workbook is a reference. No runtime spreadsheet dependency or stude
 
 Profile/folder names use letters, numbers, dashes, and underscores; names cannot escape their parent directories. Each profile has a persistent UUID in `local/profiles/<profile>/profile.json`. Preserve it when copying your local data to another machine. Profile identity, semester ID, actual date, and session ID form stable occurrence IDs. Course title, duration, export range, and export time do not affect them.
 
-`local/settings.json` stores the last context, range preset, and timing. Copy `local/` deliberately between your own machines if you want the same selections and event identities. It is not synchronized by Git. Export files and backups can contain course details and are also ignored.
+`local/settings.json` stores the last context, range preset, timing, and `schedule_mode` (`weekdays` or `exceptions`). Older settings default internally to `saved`, preserving the original optional-exception behavior until an explicit choice is saved. Copy `local/` deliberately between your own machines if you want the same selections and event identities. It is not synchronized by Git. Export files and backups can contain course details and are also ignored.
 
 No source workbooks are needed after the timetable has been configured. No school holiday dates or late-day dates are supplied by default.

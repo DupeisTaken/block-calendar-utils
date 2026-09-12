@@ -1,7 +1,7 @@
 # SHBS calendar export plan
 
 Date: 2026-09-13
-Status: Implemented on 2026-09-13 with terminal and GUI workflows, configurable CSV/JSON data, both T choices, and date exceptions. All 35 automated tests passed on Windows; screenshots were reviewed at normal and enlarged text scales. Native macOS and actual calendar-client imports remain unverified. See `README.md` and `docs/verification.md` for the delivered behavior and validation. The sections below preserve the agreed implementation plan and its original baseline.
+Status: Implemented on 2026-09-13 and updated with the `python -m shbs-calendar` command, a guided terminal export flow, explicit first/last dates, and normal-weekday versus exception scheduling. Normal weekdays ignores saved exceptions for that export without deleting them. All 43 automated tests passed on Windows; screenshots were reviewed at normal and enlarged text scales. Native macOS and actual calendar-client imports remain unverified. See `README.md` and `docs/verification.md` for the delivered behavior and validation. The sections below preserve the original implementation plan and its baseline.
 
 ## Starting point and scope
 
