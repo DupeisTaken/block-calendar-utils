@@ -1,6 +1,7 @@
 """Argument-driven commands; only `courses edit` collects interactive input."""
 
 import argparse
+import re
 import shutil
 import sys
 from dataclasses import replace
@@ -59,6 +60,7 @@ def parser():
     new.add_argument("--timetable", type=Path, help="CSV with pattern,block,start,end columns")
     new.add_argument("--weekdays", help="e.g. mon=red,tue=blue; omitted days off. Default: Monday–Friday patterns")
     new.add_argument("--utc-offset", help="Fixed school clock, default +08:00")
+    new.add_argument("--noon-cutoff", help="Half-day dividing time, default 12:30")
 
     courses = subs.add_parser("courses", parents=[common], help="Name classes or study periods for this semester")
     actions = courses.add_subparsers(dest="action", required=True)
@@ -101,20 +103,24 @@ def parser():
     choice.add_argument("--follow", help="Timetable pattern, e.g. monday")
     choice.add_argument("--late", action="store_true", help="Usual pattern, 20 minutes later")
     choice.add_argument("--normal", action="store_true", help="Usual pattern, normal times")
+    choice.add_argument("--no-morning", action="store_true", help="Usual pattern, remove morning sessions")
+    choice.add_argument("--no-afternoon", action="store_true", help="Usual pattern, remove afternoon sessions")
     sub.add_argument("--shift", type=int, help="With --follow only: replace export timing by this many minutes")
+    sub.add_argument("--half-day", choices=["no-morning", "no-afternoon"], help="Also filter a saved weekday/timing override")
     sub.add_argument("--note", default="")
 
     for command in ("export", "preview", "validate"):
         sub = subs.add_parser(command, parents=[common], help={"export": "Write a calendar file", "preview": "Show dates and classes", "validate": "Check courses, timetable and selected dates"}[command])
         dates = sub.add_mutually_exclusive_group()
-        dates.add_argument("--dayrange", metavar="FIRST:LAST", help="Inclusive dates, e.g. 2026-09-14:2026-09-18; one date also works")
+        dates.add_argument("--day-range", "--dayrange", dest="dayrange", metavar="FIRST:LAST", help="Inclusive dates: 2026-09-14:2026-09-18 or 2026-09-14-2026-09-18; one date also works")
         dates.add_argument("--first-date", "--start", dest="start", metavar="YYYY-MM-DD")
         dates.add_argument("--week", metavar="YYYY-MM-DD", help="Any date in the first Monday–Sunday week")
         dates.add_argument("--this-week", action="store_true")
         dates.add_argument("--next-week", action="store_true")
         sub.add_argument("--last-date", "--end", dest="end", metavar="YYYY-MM-DD")
         sub.add_argument("--weeks", type=int, help="Number of weeks, with a week shortcut")
-        sub.add_argument("--schedule", choices=["weekdays", "exceptions"], default="weekdays", help="Default: weekdays, ignoring saved exceptions")
+        sub.add_argument("--schedule", choices=["weekdays", "exceptions"], help="weekdays ignores exceptions; exceptions applies saved files as well as inline rules")
+        sub.add_argument("--exception", nargs=2, action="append", default=[], metavar=("DATE", "RULE"), help="Repeat for weekday changes (Mon–Sun), no-morning, no-afternoon, off, late or normal")
         sub.add_argument("--only", action="append", default=[], metavar="BLOCKS", help="Only these saved selections, e.g. B or B,T; repeatable")
         sub.add_argument("--exclude", action="append", default=[], metavar="BLOCKS", help="Omit these blocks for this export, e.g. A or A,T; repeatable")
         sub.add_argument("--cas", action="store_true", help="Include CAS with its fixed title (default: off)")
@@ -149,11 +155,15 @@ def arguments(argv):
 
 def command_settings(args, settings=None):
     """Exports never inherit stale GUI dates, lateness or exception choices."""
-    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=args.schedule, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs)
+    mode = args.schedule or ("inline" if args.exception else "weekdays")
+    if args.exception and mode == "weekdays":
+        raise CalendarError("--schedule weekdays ignores exceptions. Omit it when using --exception.")
+    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=mode, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs, inline_exceptions=args.exception)
     if bool(args.start) != bool(args.end):
         raise CalendarError("Provide --first-date and --last-date together, or use --dayrange FIRST:LAST.")
     if args.dayrange:
-        endpoints = args.dayrange.split(":")
+        dashed = re.fullmatch(r"(\d{4}-\d{2}-\d{2})-(\d{4}-\d{2}-\d{2})", args.dayrange)
+        endpoints = list(dashed.groups()) if dashed else args.dayrange.split(":")
         if len(endpoints) not in (1, 2) or not all(endpoints):
             raise CalendarError("Use --dayrange YYYY-MM-DD:YYYY-MM-DD (both dates included).")
         result.update(mode="custom", anchor=endpoints[0], end=endpoints[-1])
@@ -267,7 +277,8 @@ def exception_command(args, ctx):
         for source, items in (("school", load_overrides(ctx.folder / "exceptions.csv", ctx.semester)), ("yours", ctx.exceptions())):
             for item in items:
                 shift = "inherit" if item.time_shift_minutes is None else f"{item.time_shift_minutes:+} min"
-                print(f"{item.date}: {item.action} {item.pattern} · {shift} · {source} · {item.note}")
+                half = f" · {item.half_day}" if item.half_day else ""
+                print(f"{item.date}: {item.action} {item.pattern} · {shift}{half} · {source} · {item.note}")
         print("Applied only with --schedule exceptions. Your row replaces a school row on the same date.")
         return
     day = parse_date(args.date)
@@ -276,9 +287,12 @@ def exception_command(args, ctx):
     if args.action == "set":
         if args.shift is not None and not args.follow:
             raise CalendarError("--shift requires --follow; use --late or --normal for the usual weekday.")
-        action = "off" if args.off else "use" if args.follow else "adjust"
+        half = "no-morning" if args.no_morning else "no-afternoon" if args.no_afternoon else args.half_day or ""
+        if args.half_day and half != args.half_day:
+            raise CalendarError("Choose only one half-day filter.")
+        action = "off" if args.off else "use" if args.follow else "partial" if args.no_morning or args.no_afternoon else "adjust"
         shift = args.shift if args.follow else 20 if args.late else 0 if args.normal else None
-        items.append(DayOverride(day, action, args.follow or "", shift, args.note))
+        items.append(DayOverride(day, action, args.follow or "", shift, args.note, half))
     ctx.save_exceptions(items, expected)
     print(f"Saved exceptions: {ctx.exceptions_path}")
 
@@ -298,7 +312,7 @@ def semester_command(args, workspace):
             print("No semester definitions. Start with semester new ID --blocks X,Y,Z.")
     elif args.action == "new":
         folder = create_semester(workspace, args.id, blocks=args.blocks, name=args.name, timetable=args.timetable,
-                                 copy_from=args.copy_from, weekdays=args.weekdays, utc_offset=args.utc_offset)
+                                 copy_from=args.copy_from, weekdays=args.weekdays, utc_offset=args.utc_offset, noon_cutoff=args.noon_cutoff)
         if args.timetable or args.copy_from:
             print(f"Defined {args.id}. Review with semester show {args.id}, then select with semester use {args.id}.")
         else:

@@ -42,6 +42,7 @@ class DayOverride:
     pattern: str = ""
     time_shift_minutes: int | None = None
     note: str = ""
+    half_day: str = ""
 
 
 @dataclass(frozen=True)
@@ -57,6 +58,7 @@ class Semester:
     timing_options: dict = field(default_factory=dict)
     activities: dict[str, str] = field(default_factory=dict)
     activity_sessions: tuple[Session, ...] = ()
+    noon_cutoff: time = time(12, 30)
 
     @property
     def patterns(self) -> tuple[str, ...]:

@@ -55,28 +55,33 @@ CAS's name must be blank and its exported title is always `CAS`; `--cas` opts it
 
 ## Date exceptions
 
+For one export, prefer the [inline command examples in the README](../README.md#unusual-school-days): `export --day-range FIRST-LAST --exception DATE Mon --exception DATE no-afternoon`. Inline weekday/timing/half-day rules compose on the same date without writing files. Saved files are read only when `--schedule exceptions` is supplied; inline rules then replace the saved row for their date in full.
+
 Shared path: `semesters/<semester>/exceptions.csv`.
 Personal path: `local/profiles/<profile>/<semester>/exceptions.csv`.
 
 The examples below illustrate the format; they are **not a confirmed school calendar**:
 
 ```csv
-date,action,pattern,time_shift_minutes,note
-2026-09-18,use,monday,,Friday follows Monday
-2026-09-19,use,thursday,0,Makeup day with normal timing
-2026-09-21,off,,,No classes
-2026-09-22,adjust,,20,Late day
+date,action,pattern,time_shift_minutes,note,half_day
+2026-09-18,use,monday,,Friday follows Monday morning,no-afternoon
+2026-09-19,use,thursday,0,Makeup day with normal timing,
+2026-09-21,off,,,No classes,
+2026-09-22,adjust,,20,Late day,
+2026-09-23,partial,,,Afternoon only,no-morning
 ```
 
 - `off`: no events. Pattern and shift must be blank.
 - `use`: use a named pattern on this actual date. A weekday does not point to another date's exceptions, so swaps cannot form date-following loops.
 - `adjust`: use this date's normal weekday pattern with an explicit shift. A weekend without a base pattern needs `use`, not `adjust`.
+- `partial`: keep this date's normal pattern but remove morning or afternoon sessions. Requires `half_day` to be `no-morning` or `no-afternoon`. This optional column can also filter a `use` or `adjust` rule. Old CSVs without it still work.
+- `no-morning` removes sessions whose effective local start time is before the semester's `noon_cutoff` (default **12:30**); `no-afternoon` removes starts at or after it. The start includes any timing option and late shift. Whole sessions are removed or retained; intervals spanning the cutoff are never clipped. The rule covers selected classes, study halls and opted-in CAS/clubs.
 - A blank shift on `use` inherits the export setting. Explicit `0` or `20` **replaces** that setting. Shifts are never added twice. The CSV supports any whole-minute shift from -720 to 720 if it stays within the same day.
 - One row per date per file. Personal rows replace shared rows in full. Removing a personal row restores the school/default behavior, which may itself be a closure or different pattern.
 
 Use `--schedule exceptions` in a terminal export, or uncheck **Follows normal weekdays** in the GUI, to apply these files. That choice requires at least one exception inside the inclusive first/last date range. Dates without exceptions keep their normal weekday pattern. `--schedule weekdays` (the terminal default) uses only the regular timetable and leaves both exception files untouched. Commands such as `exceptions set 2026-09-18 --follow monday` collect all their information through arguments.
 
-The GUI supports the common normal/late shifts. A CSV-edited custom shift is preserved when selecting that row. Exceptions outside the export range are retained for later exports; malformed rows are reported when exception scheduling reads the files.
+The GUI supports normal/late shifts and a Session filter control. Choose `partial` for a half-day filter on the usual weekday, or `use` plus a filter for a substituted pattern. A CSV-edited custom shift and half-day rule are preserved when selecting/editing that row. Saved exceptions outside the range are retained for later; malformed rows are reported when saved exception scheduling reads the files. Inline dates outside the requested range are rejected, catching mistyped dates.
 
 ## Semester timetable
 
@@ -85,8 +90,9 @@ Each folder in `semesters/` contains:
 - `semester.json`: ID, display name, fixed UTC offset, block keys, weekday mapping, timing choices.
 - `timetable.csv`: explicit class/study intervals by pattern.
 - `exceptions.csv`: optional shared overrides; a missing file means none.
+- `activities.csv`: optional CAS and club slots, separate from academic blocks.
 
-`semester.json` uses weekday keys `0` for Monday through `6` for Sunday. Omit normal non-school weekdays. `utc_offset_minutes: 480` means UTC+08:00. All input times and date presets use that clock; export UTC instants do not depend on the machine timezone.
+`semester.json` uses weekday keys `0` for Monday through `6` for Sunday. Omit normal non-school weekdays. `utc_offset_minutes: 480` means UTC+08:00. All input times and date presets use that clock; export UTC instants do not depend on the machine timezone. `noon_cutoff` is an `HH:MM` string, defaulting to `12:30`; creation also accepts `--noon-cutoff HH:MM`.
 
 ```csv
 pattern,session_id,block,start,end

@@ -72,12 +72,14 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
                 detail += f"; shift {effective_shift:+d} min"
             if override.note:
                 detail += f" — {override.note}"
+            if override.half_day:
+                detail += f"; {override.half_day} (cutoff {semester.noon_cutoff:%H:%M})"
             notes.append(detail)
             if override.action == "off":
                 continue
             if override.action == "use":
                 pattern = override.pattern
-            elif not pattern:
+            elif override.action == "adjust" and not pattern:
                 raise CalendarError(f"{day}: no normal classes to adjust. Use a weekday pattern for a makeup day.")
         if not pattern:
             continue
@@ -96,6 +98,11 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
                 raise CalendarError(f"{day}: shifted time is outside the supported date range.") from exc
             if start.date() != day or end.date() != day or end <= start:
                 raise CalendarError(f"{day}/{session.session_id}: shift crosses midnight or interval is invalid.")
+            # Classify whole sessions by their effective local start time. A
+            # lesson crossing the cutoff is never shortened into half a lesson.
+            if override and ((override.half_day == "no-morning" and start.time() < semester.noon_cutoff)
+                             or (override.half_day == "no-afternoon" and start.time() >= semester.noon_cutoff)):
+                continue
             # Length-prefixed JSON-like components avoid ambiguous name joins.
             key = f"{len(semester.id)}:{semester.id}:{day}:{session.session_id}"
             uid = str(uuid5(namespace, key)) + "@shbs-calendar.local"
@@ -117,6 +124,8 @@ def preview_text(preview: Preview, *, width: int | None = None) -> str:
         lines.append("Schedule: normal weekdays. Saved exceptions are not applied to this export.")
     elif preview.schedule_mode == "exceptions":
         lines.append("Schedule: weekdays with your date exceptions.")
+    elif preview.schedule_mode == "inline":
+        lines.append("Schedule: weekdays with this command's exceptions. Saved exception files are not applied.")
     if preview.excluded:
         lines.append("Unselected blocks: " + ", ".join(preview.excluded))
     if preview.notes:

@@ -227,11 +227,11 @@ class CalendarApp:
     def _exceptions_layout(self):
         ttk.Label(self.exceptions_tab, text="When a school day is different", style="Section.TLabel").pack(anchor="w")
         ttk.Label(self.exceptions_tab, text="Use another weekday, skip a date, or change its timing. Your saved date replaces a school exception.", style="Muted.TLabel", wraplength=970).pack(anchor="w", pady=(5, 12))
-        columns = ("date", "action", "pattern", "shift", "note", "source")
+        columns = ("date", "action", "pattern", "shift", "skip", "note", "source")
         self.exception_holder = ttk.Frame(self.exceptions_tab)
         self.exception_holder.pack(fill="both", expand=True)
         self.exception_tree = ttk.Treeview(self.exception_holder, columns=columns, show="headings", height=4)
-        for column, width in zip(columns, [110, 70, 110, 80, 330, 80]):
+        for column, width in zip(columns, [110, 70, 110, 80, 100, 230, 80]):
             self.exception_tree.heading(column, text=column.title())
             self.exception_tree.column(column, width=width, minwidth=55, stretch=column == "note")
         scroll = ttk.Scrollbar(self.exception_holder, command=self.exception_tree.yview)
@@ -245,18 +245,21 @@ class CalendarApp:
         self.exc_action = tk.StringVar(value="use")
         self.exc_pattern = tk.StringVar(value=self.ctx.semester.patterns[0])
         self.exc_shift = tk.StringVar(value="Inherit")
+        self.exc_half = tk.StringVar(value="All sessions")
         self.exc_note = tk.StringVar()
-        for col, label in enumerate(["Date · YYYY-MM-DD", "Action", "Follow pattern", "Timing"]):
+        for col, label in enumerate(["Date · YYYY-MM-DD", "Action", "Follow pattern", "Timing", "Session filter"]):
             ttk.Label(form, text=label, style="Muted.TLabel").grid(row=0, column=col, sticky="w", padx=(0, 12), pady=(0, 5))
-        ttk.Entry(form, textvariable=self.exc_date, width=17).grid(row=1, column=0, sticky="ew", padx=(0, 12))
-        action = ttk.Combobox(form, textvariable=self.exc_action, values=["off", "use", "adjust"], state="readonly", width=12)
+        ttk.Entry(form, textvariable=self.exc_date, width=15).grid(row=1, column=0, sticky="ew", padx=(0, 12))
+        action = ttk.Combobox(form, textvariable=self.exc_action, values=["off", "use", "adjust", "partial"], state="readonly", width=10)
         action.grid(row=1, column=1, padx=(0, 12))
         action.bind("<<ComboboxSelected>>", lambda _: self.update_exception_fields())
-        self.exc_pattern_box = ttk.Combobox(form, textvariable=self.exc_pattern, values=self.ctx.semester.patterns, state="readonly", width=17)
+        self.exc_pattern_box = ttk.Combobox(form, textvariable=self.exc_pattern, values=self.ctx.semester.patterns, state="readonly", width=14)
         self.exc_pattern_box.grid(row=1, column=2, padx=(0, 12))
-        self.exc_shift_box = ttk.Combobox(form, textvariable=self.exc_shift, values=["Inherit", "Normal", "Late (+20 min)"], state="readonly", width=18)
-        self.exc_shift_box.grid(row=1, column=3)
-        hint = ttk.Label(self.exceptions_tab, text="off = no classes     use = another pattern     adjust = same day, different timing", style="Muted.TLabel", wraplength=970)
+        self.exc_shift_box = ttk.Combobox(form, textvariable=self.exc_shift, values=["Inherit", "Normal", "Late (+20 min)"], state="readonly", width=15)
+        self.exc_shift_box.grid(row=1, column=3, padx=(0, 12))
+        self.exc_half_box = ttk.Combobox(form, textvariable=self.exc_half, values=["All sessions", "No morning", "No afternoon"], state="readonly", width=14)
+        self.exc_half_box.grid(row=1, column=4, sticky="w")
+        self.cutoff_label = hint = ttk.Label(self.exceptions_tab, text=self.exception_hint(), style="Muted.TLabel", wraplength=970)
         hint.pack(anchor="w", pady=(2, 10))
         row = ttk.Frame(self.exceptions_tab)
         row.pack(fill="x")
@@ -384,6 +387,7 @@ class CalendarApp:
             self.refresh_exceptions()
             self.exc_pattern_box.configure(values=self.ctx.semester.patterns)
             self.exc_pattern.set(self.ctx.semester.patterns[0])
+            self.cutoff_label.configure(text=self.exception_hint())
             self.set_preview_text("Profile changed. Refresh the preview to see this timetable.")
             self.status.set(f"Using {self.ctx.profile} · {self.ctx.semester.name}")
         finally:
@@ -453,10 +457,14 @@ class CalendarApp:
         self.ctx.export(preview, Path(output), overwrite=True)
         self.status.set(f"Exported {len(preview.events)} events · {Path(output).name}")
 
+    def exception_hint(self):
+        return f"off: no classes   use: another day   adjust: timing   partial: half day   cutoff {self.ctx.semester.noon_cutoff:%H:%M}"
+
     def update_exception_fields(self):
         kind = self.exc_action.get()
         self.exc_pattern_box.configure(state="readonly" if kind == "use" else "disabled")
         self.exc_shift_box.configure(state="disabled" if kind == "off" else "readonly")
+        self.exc_half_box.configure(state="disabled" if kind == "off" else "readonly")
         if kind == "adjust" and self.exc_shift.get() == "Inherit":
             self.exc_shift.set("Normal")
 
@@ -469,18 +477,19 @@ class CalendarApp:
             self.exception_tree.delete(item)
         for source, items in [("School", school), ("Yours", self.exception_items)]:
             for i in items:
-                self.exception_tree.insert("", "end", values=(str(i.date), i.action, i.pattern, "Inherit" if i.time_shift_minutes is None else i.time_shift_minutes, i.note, source))
+                self.exception_tree.insert("", "end", values=(str(i.date), i.action, i.pattern, "Inherit" if i.time_shift_minutes is None else i.time_shift_minutes, i.half_day.removeprefix("no-"), i.note, source))
 
     def select_exception(self):
         selected = self.exception_tree.selection()
         if not selected:
             return
-        day, action, pattern, shift, note, _ = self.exception_tree.item(selected[0], "values")
+        day, action, pattern, shift, skip, note, _ = self.exception_tree.item(selected[0], "values")
         self.exc_date.set(day)
         self.exc_action.set(action)
         self.exc_pattern.set(pattern)
         self.exc_shift.set({"0": "Normal", "20": "Late (+20 min)"}.get(str(shift), str(shift)))
         self.exc_note.set(note)
+        self.exc_half.set({"": "All sessions", "morning": "No morning", "afternoon": "No afternoon"}[skip])
         self.update_exception_fields()
 
     def save_exception(self):
@@ -488,7 +497,8 @@ class CalendarApp:
         shifts = {"Inherit": None, "Normal": 0, "Late (+20 min)": 20}
         text = self.exc_shift.get()
         shift = None if action == "off" else shifts[text] if text in shifts else int(text)
-        item = DayOverride(day, action, self.exc_pattern.get() if action == "use" else "", shift, self.exc_note.get().strip())
+        half = "" if action == "off" else {"All sessions": "", "No morning": "no-morning", "No afternoon": "no-afternoon"}[self.exc_half.get()]
+        item = DayOverride(day, action, self.exc_pattern.get() if action == "use" else "", shift, self.exc_note.get().strip(), half)
         items = [i for i in self.exception_items if i.date != day] + [item]
         self.ctx.save_exceptions(items, self.exception_digest)
         self.weekdays_var.set(False)

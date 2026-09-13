@@ -170,6 +170,23 @@ class CLITests(unittest.TestCase):
         self.assertIn("No classes", result.stderr)
         self.assertFalse((self.root / "exports").exists())
 
+    def test_inline_exceptions_and_hyphenated_day_range(self):
+        ctx = self.init()
+        old = ctx.exceptions_path.read_bytes()
+        for dayrange in ("2026-09-17:2026-09-18", "2026-09-17-2026-09-18"):
+            path = self.root / "inline.ics"
+            self.ok("export", "--day-range", dayrange, "--exception", "2026-09-18", "Mon", "--exception", "2026-09-18", "no-afternoon", "-o", str(path), "--overwrite")
+            data = path.read_text()
+            self.assertEqual(data.count("BEGIN:VEVENT"), 2)
+            self.assertIn("DTSTART:20260918T014000Z", data)
+        self.assertEqual(ctx.exceptions_path.read_bytes(), old)
+        self.assertEqual(self.run_cli("preview", "--day-range", "2026-09-18", "--schedule", "weekdays", "--exception", "2026-09-18", "Mon").returncode, 2)
+        self.assertEqual(self.run_cli("preview", "--day-range", "2026-09-18", "--exception", "2026-09-18").returncode, 2)
+        self.ok("exceptions", "set", "2026-09-18", "--follow", "monday", "--half-day", "no-afternoon")
+        self.assertIn("no-afternoon", self.ok("exceptions", "list").stdout)
+        self.ok("exceptions", "set", "2026-09-18", "--no-morning")
+        self.assertEqual(ctx.exceptions()[0].half_day, "no-morning")
+
     def test_named_clubs_and_cas_are_opt_in(self):
         self.init()
         self.ok("activities", "set", "club-tue", "Chess", "--room", "Library")

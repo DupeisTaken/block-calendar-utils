@@ -32,21 +32,21 @@ The last command replaces the earlier T selection. `--timing` accepts hyphenated
 
 ```sh
 # First and last date, both included. No questions or confirmation menu.
-python -m shbs-calendar --dayrange 2026-09-14:2026-09-18
+python -m shbs-calendar --day-range 2026-09-14-2026-09-18
 
 # A single day, next week, or three weeks beginning with a selected week.
-python -m shbs-calendar --dayrange 2026-09-17
+python -m shbs-calendar --day-range 2026-09-17
 python -m shbs-calendar --next-week
 python -m shbs-calendar --week 2026-09-14 --weeks 3
 
 # Inspect before exporting, or explicitly choose the destination.
-python -m shbs-calendar preview --dayrange 2026-09-16:2026-09-18
+python -m shbs-calendar preview --day-range 2026-09-16-2026-09-18
 python -m shbs-calendar export --next-week --late -o exports/next-week.ics
 ```
 
-You can omit `export` when supplying export flags. `--this-week` is also available. `--first-date DATE --last-date DATE` and their shorter `--start`/`--end` aliases still work. Week shortcuts cover Monday–Sunday; unscheduled days have no events. Every export or preview requires a date range or week shortcut.
+You can omit `export` when supplying export flags. `--day-range` accepts two ISO dates separated by `-` or `:`; the old `--dayrange` spelling remains an alias. `--this-week` is also available. `--first-date DATE --last-date DATE` and their shorter `--start`/`--end` aliases still work. Week shortcuts cover Monday–Sunday; unscheduled days have no events. Every export or preview requires a date range or week shortcut.
 
-**Each terminal export defaults to normal times and the regular weekday timetable**, irrespective of saved GUI settings. Add `--late` to shift start/end times by 20 minutes. Add `--schedule exceptions` to apply saved unusual days. `--normal` and `--schedule weekdays` explicitly select the defaults. Commands do not change remembered GUI dates or timing.
+**Each terminal export defaults to normal times and the regular weekday timetable**, irrespective of saved GUI settings. Add `--late` to shift start/end times by 20 minutes. Use `--exception DATE RULE` for changes in this command, or add `--schedule exceptions` to apply saved unusual days. `--normal` and `--schedule weekdays` explicitly select the defaults; explicit weekdays cannot be combined with inline exceptions. Commands do not change remembered GUI dates or timing.
 
 Exports go to the gitignored `exports/` folder. Success reports the event count, dates and path. Existing files require `--overwrite`; an empty selection/range reports an error instead of writing an empty calendar.
 
@@ -56,24 +56,58 @@ Terminal previews arrange days side by side when space permits, keeping each wee
 
 ## Unusual school days
 
+Use **`--exception DATE RULE`** directly on `export` or `preview`. Each flag takes exactly two values: the actual date to change, then the kind of change. Repeat it for more dates or different rule types on the same date. Rules apply to this invocation only; they do not edit CSV files.
+
 ```sh
-# Friday follows the complete Monday class pattern, on Friday's actual date.
-python -m shbs-calendar exceptions set 2026-09-18 --follow monday
+# Friday 18 September follows Monday's timetable. Events stay on Friday.
+python -m shbs-calendar export --day-range 2026-09-14-2026-09-18 --exception 2026-09-18 Mon
 
-# No classes, or a late day with its usual pattern.
-python -m shbs-calendar exceptions set 2026-09-21 --off
-python -m shbs-calendar exceptions set 2026-09-22 --late
+# Thursday has no afternoon; Friday has no morning.
+python -m shbs-calendar export --day-range 2026-09-14-2026-09-18 --exception 2026-09-17 no-afternoon --exception 2026-09-18 no-morning
 
-# Apply saved exceptions only when requested for an export.
-python -m shbs-calendar --dayrange 2026-09-14:2026-09-25 --schedule exceptions
+# Combine Monday's timetable and no afternoon on that same Friday.
+python -m shbs-calendar preview --day-range 2026-09-14-2026-09-18 --exception 2026-09-18 Mon --exception 2026-09-18 no-afternoon
 
-python -m shbs-calendar exceptions list
-python -m shbs-calendar exceptions remove 2026-09-18
+# No school on one date, and late timing on another.
+python -m shbs-calendar export --day-range 2026-09-14-2026-09-18 --exception 2026-09-16 off --exception 2026-09-17 late
 ```
 
-`--follow` takes a pattern listed by `semester show ID`. Add `--shift 0` or `--shift 20` with `--follow` to replace that date's timing; otherwise it inherits the export's timing. `--normal` sets a usual-pattern day to normal timing. `--note "Text"` records an optional explanation.
+| Rule after the date | Meaning |
+| --- | --- |
+| `Mon`, `Tue`, `Wed`, `Thu`, `Fri`, `Sat`, `Sun` | Use that weekday's configured timetable, including any opted-in activities |
+| `no-afternoon` | Remove sessions starting at or after **12:30** |
+| `no-morning` | Remove sessions starting before **12:30** |
+| `off` | No classes or activities on that date |
+| `late` | Shift that date's normal or substituted timetable by +20 minutes |
+| `normal` | Use normal times on that date, overriding an export-wide `--late` |
 
-Exception scheduling requires at least one saved exception inside the chosen range. Other dates follow normal weekdays. Your date overrides the school's row for that date. Normal weekday exports ignore both files without changing them. No holidays or late days are guessed.
+Weekday names are case-insensitive; full names also work. If a weekday has no configured timetable, use `off` instead. You may also use a custom pattern name from `semester show ID`, such as `half-day`.
+
+**Combining rules:** a weekday replacement, a timing choice and one half-day rule may share a date in any order. Two different weekday replacements, both half-day rules, `late` plus `normal`, or `off` plus another type are rejected. Exception dates must lie inside the export range.
+
+Half-day filtering applies **after** the replacement pattern, course duration choices and timing shift. It uses the resulting local start time and keeps/removes whole sessions; a session crossing noon is never cut in half. The cutoff is `12:30` by default, configurable as `"noon_cutoff": "12:30"` in `semester.json`, or with `semester new ... --noon-cutoff 12:30`. CAS and clubs follow the same rule when included.
+
+### Reusing saved exceptions
+
+Save reusable changes through `exceptions set`, the GUI or CSV:
+
+```sh
+python -m shbs-calendar exceptions set 2026-09-18 --follow monday --half-day no-afternoon
+python -m shbs-calendar exceptions set 2026-09-21 --off
+python -m shbs-calendar exceptions set 2026-09-22 --no-morning
+python -m shbs-calendar exceptions list
+python -m shbs-calendar exceptions remove 2026-09-18
+
+# Apply the saved school and personal files.
+python -m shbs-calendar export --day-range 2026-09-14-2026-09-25 --schedule exceptions
+
+# Apply saved files, with an inline replacement for one date.
+python -m shbs-calendar export --day-range 2026-09-14-2026-09-25 --schedule exceptions --exception 2026-09-18 Mon
+```
+
+With `--schedule exceptions`, your personal CSV row replaces the school row for the same date, then an inline rule replaces that entire saved row. **Inline-only commands ignore saved exception files.** Dates without any applicable rule keep their normal weekdays. Saved-file mode requires at least one saved or inline exception within the range; normal weekday mode leaves all saved files untouched. No holidays or late days are guessed.
+
+For saved rules, `--follow` takes an exact pattern name. Add `--shift 0` or `--shift 20` with it to replace that date's timing; otherwise timing is inherited. `--half-day` adds a session filter, and `--note "Text"` adds a preview explanation. Saved exception edits are separate actions; inline `--exception` flags never save anything.
 
 ## A different semester
 

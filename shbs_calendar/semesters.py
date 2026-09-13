@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .models import CalendarError
 from .storage import (EXCEPTION_FIELDS, atomic_write, csv_bytes, load_overrides,
-                      load_semester, read_json, safe_child, write_json)
+                      load_semester, parse_time, read_json, safe_child, write_json)
 
 DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 SIMPLE_FIELDS = ("pattern", "block", "start", "end")
@@ -36,15 +36,15 @@ def utc_minutes(value):
 
 
 def create_semester(workspace, sid, *, blocks=None, name=None, timetable=None,
-                    copy_from=None, weekdays=None, utc_offset=None):
+                    copy_from=None, weekdays=None, utc_offset=None, noon_cutoff=None):
     """Stage supplied data together; a failed import cannot leave a half-definition."""
     parent = workspace.root / "semesters"
     target = safe_child(parent, sid)
     if target.exists():
         raise CalendarError(f"Semester {sid!r} already exists. Edit its files or choose a new ID.")
     if copy_from:
-        if any(value is not None for value in (blocks, timetable, weekdays, utc_offset)):
-            raise CalendarError("--copy cannot be combined with --blocks, --timetable, --weekdays or --utc-offset.")
+        if any(value is not None for value in (blocks, timetable, weekdays, utc_offset, noon_cutoff)):
+            raise CalendarError("--copy cannot be combined with --blocks, --timetable, --weekdays, --utc-offset or --noon-cutoff.")
         source = safe_child(parent, copy_from)
         load_semester(source)
         config = read_json(source / "semester.json")
@@ -55,7 +55,7 @@ def create_semester(workspace, sid, *, blocks=None, name=None, timetable=None,
         if not all(names) or len(set(names)) != len(names) or any(any(ord(c) < 32 for c in b) for b in names):
             raise CalendarError("Define unique block names with --blocks X,Y,Z, or reuse a timetable with --copy ID.")
         config = dict(blocks=names, weekdays=weekday_map(weekdays),
-                      utc_offset_minutes=utc_minutes(utc_offset or "+08:00"))
+                      utc_offset_minutes=utc_minutes(utc_offset or "+08:00"), noon_cutoff=parse_time(noon_cutoff or "12:30").strftime("%H:%M"))
         data = Path(timetable).read_bytes() if timetable else csv_bytes(SIMPLE_FIELDS, [])
     config.update(id=sid, name=name or sid)
     parent.mkdir(parents=True, exist_ok=True)
@@ -76,7 +76,7 @@ def describe_semester(folder):
     semester = load_semester(folder)
     load_overrides(folder / "exceptions.csv", semester)
     lines = [f"{semester.id} · {semester.name} · {semester.clock}",
-             "Blocks: " + ", ".join(semester.blocks), "Weekdays:"]
+             "Blocks: " + ", ".join(semester.blocks), f"Half-day cutoff: {semester.noon_cutoff:%H:%M}", "Weekdays:"]
     lines += [f"  {DAYS[i].title()}: {semester.weekdays.get(i, 'no classes')}" for i in range(7)]
     lines.append("Timetable:")
     for pattern in semester.patterns:

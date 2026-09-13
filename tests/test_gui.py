@@ -44,6 +44,24 @@ class GUITests(unittest.TestCase):
     def fields(self, block):
         return dict(self.app.course_vars)[block]
 
+    def test_gui_half_day_roundtrip_preserves_filter_when_editing_note(self):
+        self.fields("A")["course"].set("Math")
+        self.fields("F")["course"].set("Music")
+        self.app.exc_date.set("2026-09-18")
+        self.app.exc_pattern.set("monday")
+        self.app.exc_half.set("No afternoon")
+        self.app.save_exception()
+        result = self.app.preview()
+        friday = [e for e in result.events if e.start.day == 18]
+        self.assertEqual([e.block for e in friday], ["A"])
+        item = self.app.exception_tree.get_children()[0]
+        self.app.exception_tree.selection_set(item)
+        self.app.select_exception()
+        self.assertEqual(self.app.exc_half.get(), "No afternoon")
+        self.app.exc_note.set("Updated")
+        self.app.save_exception()
+        self.assertEqual(self.app.ctx.exceptions()[0].half_day, "no-afternoon")
+
     def test_activity_form_saves_named_clubs_and_opt_in_preview(self):
         self.assertFalse(self.app.cas_var.get())
         self.assertFalse(self.app.clubs_var.get())

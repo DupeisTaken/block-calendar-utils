@@ -122,12 +122,19 @@ class Context:
     def preview(self, settings: dict):
         first, last = self.dates(settings)
         mode = settings.get("schedule_mode", "saved")
-        if mode not in {"weekdays", "exceptions", "saved"}:
+        if mode not in {"weekdays", "exceptions", "saved", "inline"}:
             raise CalendarError("Choose a weekday or exception schedule.")
         # Regular weekdays is an export-only switch: never erase saved dates.
         # 'saved' preserves the behavior of scripts/settings from version 1.0.
-        school = [] if mode == "weekdays" else load_overrides(self.folder / "exceptions.csv", self.semester)
-        personal = [] if mode == "weekdays" else self.exceptions()
+        school = load_overrides(self.folder / "exceptions.csv", self.semester) if mode in {"exceptions", "saved"} else []
+        personal = self.exceptions() if mode in {"exceptions", "saved"} else []
+        from .exceptions import inline_overrides
+        inline = inline_overrides(settings.get("inline_exceptions", []), self.semester, first, last)
+        if inline and mode == "weekdays":
+            raise CalendarError("--schedule weekdays ignores exceptions. Omit it when using --exception.")
+        # Inline rules replace the saved row for that date; neither CSV changes.
+        inline_days = {item.date for item in inline}
+        personal = [item for item in personal if item.date not in inline_days] + inline
         if mode == "exceptions" and not any(first <= item.date <= last for item in school + personal):
             raise CalendarError("Add at least one exception inside the export's first and last dates, or choose the normal weekday schedule.")
         courses = self.courses()

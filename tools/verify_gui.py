@@ -81,6 +81,8 @@ def main():
             if name == "exceptions":
                 button = app.save_date_button
                 assert button.winfo_rooty() + button.winfo_height() <= app.exceptions_tab.winfo_rooty() + app.exceptions_tab.winfo_height(), "Exception save button clipped"
+                bbox = app.exception_tree.bbox(app.exception_tree.get_children()[0])
+                assert bbox and bbox[1] + bbox[3] <= app.exception_tree.winfo_height(), "First exception row clipped"
             if sys.platform == "win32":
                 # Capture only our window even when another app occludes it.
                 image = ImageGrab.grab(window=int(root.frame(), 16))
