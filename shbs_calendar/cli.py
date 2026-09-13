@@ -1,6 +1,7 @@
 """Argument-driven commands; only `courses edit` collects interactive input."""
 
 import argparse
+import shutil
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -111,6 +112,9 @@ def parser():
         if command == "export":
             sub.add_argument("--output", "-o", type=Path)
             sub.add_argument("--overwrite", action="store_true")
+        if command == "preview":
+            sub.add_argument("--width", type=int, help="Terminal preview width (20–300); default: detect terminal, fallback 120")
+            sub.add_argument("--layout", choices=["columns", "list"], default="columns", help="Default: days side by side when space permits")
     return result
 
 
@@ -302,7 +306,8 @@ def main(argv=None):
         else:
             preview = ctx.preview(command_settings(args))
             if args.command == "preview":
-                print(preview_text(preview))
+                width = args.width if args.width is not None else max(20, min(300, shutil.get_terminal_size((120, 24)).columns))
+                print(preview_text(preview, width=width if args.layout == "columns" else None))
             elif args.command == "validate":
                 print(f"Valid: {len(preview.events)} events, {preview.start} to {preview.end}, {preview.clock}")
             else:

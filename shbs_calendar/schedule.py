@@ -107,7 +107,7 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
     return Preview(events, notes, excluded, first, last, str(semester.clock))
 
 
-def preview_text(preview: Preview) -> str:
+def preview_text(preview: Preview, *, width: int | None = None) -> str:
     lines = [f"{preview.start} to {preview.end} · {len(preview.events)} events · {preview.clock}"]
     if preview.schedule_mode == "weekdays":
         lines.append("Schedule: normal weekdays. Saved exceptions are not applied to this export.")
@@ -117,6 +117,11 @@ def preview_text(preview: Preview) -> str:
         lines.append("Unselected blocks: " + ", ".join(preview.excluded))
     if preview.notes:
         lines.extend(["", "Date exceptions:", *preview.notes])
+    if width is not None:
+        if not 20 <= width <= 300:
+            raise CalendarError("Preview width must be between 20 and 300 columns.")
+        from .terminal import day_columns
+        return day_columns(preview, lines, width)
     current = None
     for event in preview.events:
         day = event.start.date()

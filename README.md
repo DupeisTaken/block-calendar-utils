@@ -52,6 +52,8 @@ Exports go to the gitignored `exports/` folder. Success reports the event count,
 
 To export only selected blocks, add `--only B` or `--only B,T`. To omit blocks, add `--exclude A` or `--exclude A,T`. Both accept repeated flags and unambiguous lowercase names. They filter enabled, named courses for this invocation without editing your CSV or enabling unused blocks. If combined, exclusions take precedence. The same flags work with `preview` and `validate`.
 
+Terminal previews arrange days side by side when space permits, keeping each week together. Long names wrap instead of being cut off. Terminal width is detected automatically; use `preview --next-week --width 100` to set it explicitly, or `--layout list` for the original vertical layout. Redirected output defaults to 120 columns. The GUI keeps its scrollable list preview.
+
 ## Unusual school days
 
 ```sh
