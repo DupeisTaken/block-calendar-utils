@@ -24,6 +24,7 @@ class CalendarApp:
         self.settings = workspace.settings()
         self.ctx = workspace.context(self.settings["profile"], workspace.selected_semester(), create=True)
         self.baseline, self.course_vars = [], []
+        self.activity_baseline, self.activity_vars = [], {}
         self.course_digest = None
         root.title("SHBS Calendar")
         root.geometry("1120x800")
@@ -33,6 +34,7 @@ class CalendarApp:
         self._style()
         self._layout()
         self.load_courses()
+        self.load_activities()
         self.refresh_exceptions()
         self.update_date_fields()
         root.bind("<Control-s>", lambda _: self.run(self.save))
@@ -82,9 +84,12 @@ class CalendarApp:
         self.tabs.add(self.courses_tab, text="01  Courses")
         self.tabs.add(self.preview_tab, text="02  Dates & preview")
         self.tabs.add(self.exceptions_tab, text="03  Exceptions")
+        self.activities_tab = ttk.Frame(self.tabs, padding=18)
+        self.tabs.add(self.activities_tab, text="04  CAS & clubs")
         self._courses_layout()
         self._preview_layout()
         self._exceptions_layout()
+        self._activities_layout()
         footer = ttk.Frame(self.root, padding=(28, 16))
         # Reserve the action bar before the expandable notebook. Otherwise Tk
         # can allocate all height to notebook content at enlarged font scales.
@@ -93,7 +98,59 @@ class CalendarApp:
         ttk.Label(footer, textvariable=self.status, style="Muted.TLabel", wraplength=590).pack(side="left")
         self.export_button = ttk.Button(footer, text="Export .ics", style="Accent.TButton", command=lambda: self.run(self.export))
         self.export_button.pack(side="right")
-        ttk.Button(footer, text="Save courses", command=lambda: self.run(self.save)).pack(side="right", padx=10)
+        ttk.Button(footer, text="Save selections", command=lambda: self.run(self.save)).pack(side="right", padx=10)
+
+    def _activities_layout(self):
+        ttk.Label(self.activities_tab, text="Optional CAS and clubs", style="Section.TLabel").pack(anchor="w")
+        ttk.Label(self.activities_tab, text="CAS uses its fixed title. Name the clubs you attend, then choose what to include in this export.", style="Muted.TLabel", wraplength=900).pack(anchor="w", pady=(8, 14))
+        self.cas_var = tk.BooleanVar(value=self.settings.get("cas", False))
+        self.clubs_var = tk.BooleanVar(value=self.settings.get("clubs", False))
+        ttk.Checkbutton(self.activities_tab, text="Include CAS", variable=self.cas_var).pack(anchor="w")
+        ttk.Checkbutton(self.activities_tab, text="Include enabled, named clubs", variable=self.clubs_var).pack(anchor="w", pady=(4, 16))
+        holder = ttk.Frame(self.activities_tab)
+        holder.pack(fill="both", expand=True)
+        self.activity_canvas = tk.Canvas(holder, bg=BG, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(holder, command=self.activity_canvas.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.activity_canvas.configure(yscrollcommand=scrollbar.set)
+        self.activity_canvas.pack(fill="both", expand=True)
+        self.activity_grid = ttk.Frame(self.activity_canvas)
+        window = self.activity_canvas.create_window((0, 0), window=self.activity_grid, anchor="nw")
+        self.activity_canvas.bind("<Configure>", lambda e: self.activity_canvas.itemconfigure(window, width=e.width))
+        self.activity_grid.bind("<Configure>", lambda _: self.activity_canvas.configure(scrollregion=self.activity_canvas.bbox("all")))
+
+    def load_activities(self):
+        self.activity_baseline = self.ctx.activities()
+        self.activity_digest = digest(self.ctx.activities_path)
+        self.activity_vars = {}
+        for child in self.activity_grid.winfo_children():
+            child.destroy()
+        self.activity_grid.columnconfigure(1, weight=1)
+        for row, item in enumerate(self.activity_baseline):
+            slots = ", ".join(f"{s.pattern.title()} {s.start:%H:%M}–{s.end:%H:%M}" for s in self.ctx.semester.activity_sessions if s.block == item.activity)
+            if self.ctx.semester.activities[item.activity] == "cas":
+                ttk.Label(self.activity_grid, text="CAS", font=(self.font, 11, "bold")).grid(row=row * 2, column=0, sticky="w", pady=(12, 3))
+            else:
+                name, enabled, room = tk.StringVar(value=item.name), tk.BooleanVar(value=item.enabled), tk.StringVar(value=item.location)
+                self.activity_vars[item.activity] = (name, enabled, room)
+                ttk.Checkbutton(self.activity_grid, text=item.activity, variable=enabled).grid(row=row * 2, column=0, sticky="w", pady=(12, 3), padx=(0, 12))
+                ttk.Entry(self.activity_grid, textvariable=name, width=30).grid(row=row * 2, column=1, sticky="ew", pady=(12, 3))
+                ttk.Label(self.activity_grid, text="Room").grid(row=row * 2, column=2, padx=8)
+                ttk.Entry(self.activity_grid, textvariable=room, width=12).grid(row=row * 2, column=3)
+                name.trace_add("write", lambda *_, n=name, use=enabled: use.set(bool(n.get().strip())))
+            ttk.Label(self.activity_grid, text=slots, style="Muted.TLabel", wraplength=750).grid(row=row * 2 + 1, column=0, columnspan=4, sticky="w", pady=(0, 10))
+        if not self.activity_baseline:
+            ttk.Label(self.activity_grid, text="No activities are defined for this semester. Add its activities.csv first.", wraplength=750).grid(sticky="w")
+
+    def read_activity_form(self):
+        from dataclasses import replace
+        result = []
+        for item in self.activity_baseline:
+            if item.activity in self.activity_vars:
+                name, enabled, room = self.activity_vars[item.activity]
+                item = replace(item, name=name.get().strip(), enabled=enabled.get(), location=room.get().strip())
+            result.append(item)
+        return result
 
     def _courses_layout(self):
         bar = ttk.Frame(self.courses_tab)
@@ -230,7 +287,7 @@ class CalendarApp:
         return courses
 
     def dirty(self):
-        return self.read_course_form() != self.baseline
+        return self.read_course_form() != self.baseline or self.read_activity_form() != self.activity_baseline
 
     def load_courses(self):
         courses = self.ctx.courses()
@@ -271,10 +328,18 @@ class CalendarApp:
         self.path_label.configure(text=f"Saved locally · {self.ctx.courses_path}")
 
     def save(self):
-        if self.dirty():
+        from .activities import validate_activities
+        from .storage import validate_courses
+        # Validate both forms before saving either; input errors keep edits intact.
+        validate_courses(self.read_course_form(), self.ctx.semester)
+        validate_activities(self.read_activity_form(), self.ctx.semester)
+        if self.read_course_form() != self.baseline:
             self.ctx.save_courses(self.read_course_form(), self.course_digest)
+        if self.read_activity_form() != self.activity_baseline:
+            self.ctx.save_activities(self.read_activity_form(), self.activity_digest)
         self.load_courses()
-        self.status.set("Courses saved. Your CSV is ready for the next export.")
+        self.load_activities()
+        self.status.set("Selections saved. Your CSV files are ready for the next export.")
 
     def show_course_field(self, widget):
         self.root.update_idletasks()
@@ -288,6 +353,7 @@ class CalendarApp:
         if self.dirty() and not messagebox.askyesno("Reload CSV", "Discard unsaved course edits and reload the CSV?", parent=self.root):
             return
         self.load_courses()
+        self.load_activities()
         self.refresh_exceptions()
         self.clock_label.configure(text=str(self.ctx.semester.clock))
         self.status.set("Reloaded the latest files.")
@@ -295,7 +361,7 @@ class CalendarApp:
     def keep_edits(self):
         if not self.dirty():
             return True
-        answer = messagebox.askyesnocancel("Unsaved courses", "Save your course edits before continuing?", parent=self.root)
+        answer = messagebox.askyesnocancel("Unsaved selections", "Save your course and club edits before continuing?", parent=self.root)
         if answer is None:
             return False
         if answer:
@@ -309,9 +375,12 @@ class CalendarApp:
             candidate = self.workspace.context(self.profile_var.get(), self.semester_var.get(), create=True)
             candidate.courses()
             self.ctx = candidate
-            self.settings.update(profile=self.ctx.profile, semester=self.ctx.semester.id, active_semester=self.ctx.semester.id)
+            self.settings.update(profile=self.ctx.profile, semester=self.ctx.semester.id, active_semester=self.ctx.semester.id, cas=False, clubs=False)
             self.workspace.save_settings(self.settings)
             self.load_courses()
+            self.load_activities()
+            self.cas_var.set(False)
+            self.clubs_var.set(False)
             self.refresh_exceptions()
             self.exc_pattern_box.configure(values=self.ctx.semester.patterns)
             self.exc_pattern.set(self.ctx.semester.patterns[0])
@@ -350,7 +419,7 @@ class CalendarApp:
         self.status.set("Add or review exceptions within the first and last dates, then return to Dates & preview.")
 
     def range_settings(self):
-        return dict(self.settings, mode=MODES[self.mode_var.get()], anchor=self.anchor_var.get().strip(), end=self.end_var.get().strip(), weeks=1 if MODES[self.mode_var.get()] == "custom" else int(self.weeks_var.get()), late=self.late_var.get(), schedule_mode="weekdays" if self.weekdays_var.get() else "exceptions")
+        return dict(self.settings, mode=MODES[self.mode_var.get()], anchor=self.anchor_var.get().strip(), end=self.end_var.get().strip(), weeks=1 if MODES[self.mode_var.get()] == "custom" else int(self.weeks_var.get()), late=self.late_var.get(), schedule_mode="weekdays" if self.weekdays_var.get() else "exceptions", cas=self.cas_var.get(), clubs=self.clubs_var.get())
 
     def set_preview_text(self, text):
         self.preview_widget.configure(state="normal")

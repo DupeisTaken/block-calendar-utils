@@ -112,6 +112,25 @@ Advanced choices, half-day patterns and CSV details: [configuration](docs/config
 
 ## Courses, profiles and GUI
 
+### CAS and clubs
+
+Both are excluded unless requested. CAS needs no name; each club slot has its own saved name:
+
+```sh
+python -m shbs-calendar activities list
+python -m shbs-calendar activities set club-tue "Chess Club"
+python -m shbs-calendar activities set club-wed "Robotics Club" --room "Lab 2"
+python -m shbs-calendar --next-week --cas --clubs
+```
+
+`--cas` includes events titled **CAS**. `--clubs` includes only named, enabled clubs; `activities disable club-wed` keeps a name while excluding that club. `activities clear ID` clears a name, and `activities enable ID` restores a named club. Selections are saved beside courses in `local/profiles/<profile>/<semester>/activities.csv`. Asking for clubs before naming one reports an actionable error.
+
+The included preset has CAS Monday **15:05–16:05**, clubs Tuesday **15:45–16:35** and Wednesday **15:50–16:40**. These come from the workbook's special-session rows, including their late (+20 minute) times. Each semester may define different activity slots in its own `activities.csv`. Activities follow any replacement-day pattern, closures and timing shifts. `--only`/`--exclude` filter class blocks; explicitly requested CAS/clubs are additional selections.
+
+The GUI's **CAS & clubs** tab provides club names, optional rooms and inclusion checkboxes. Activities start off when selecting a semester. Saved GUI choices do not change the terminal's default of excluding activities.
+
+### Other commands and saved files
+
 | Command | Action |
 | --- | --- |
 | `courses list` | Show selected and unused blocks |
@@ -128,7 +147,7 @@ Prefix each command with `python -m shbs-calendar`. Use `COMMAND --help` for det
 
 Courses are saved under `local/profiles/<profile>/<semester>/courses.csv`; personal exceptions sit beside them. **`local/` and `exports/` are gitignored.** Keep the profile's `profile.json` when moving your local data to another machine so event identities remain stable. Semester definitions are shared project data and may be committed; they contain no student selections.
 
-The GUI has courses, dates/preview and exceptions tabs. On first use it asks you to select and review a semester definition. Create new definitions through the terminal or configuration files. After changing definitions on disk, reopen the GUI. The GUI retains its own last-used range; those choices do not affect terminal exports. Its CSV reload and save operations detect conflicting external edits.
+The GUI has courses, dates/preview, exceptions and CAS/clubs tabs. On first use it asks you to select and review a semester definition. Create new definitions through the terminal or configuration files. After changing definitions on disk, reopen the GUI. The GUI retains its own last-used range; those choices do not affect terminal exports. Its CSV reload and save operations detect conflicting external edits.
 
 Tkinter is needed only for the GUI and is normally included in Python.org desktop installers. On Windows, `shbs-gui.pyw` is also a double-click launcher. The legacy `python -m shbs_calendar` entry point still works.
 
@@ -136,7 +155,7 @@ Tkinter is needed only for the GUI and is normally included in Python.org deskto
 
 Exported events contain the course name, start/end times and optional location. No block, teacher or timetable-following annotations are appended. Teacher details remain saved locally; date-exception explanations remain in the preview.
 
-The supplied 2026–27 S1 preset includes only classes/study periods; P&B, CAS, clubs and meals are excluded. Wednesday T runs 15:05–15:45 for both choices. Thursday T ends at **16:25 for study hall** and **17:05 for TOEFL**, starting at 15:45. Late timing adds 20 minutes. Those rules belong to this preset, not every semester.
+The supplied 2026–27 S1 preset includes classes/study periods and optional CAS/clubs; P&B and meals are excluded. Wednesday T runs 15:05–15:45 for both choices. Thursday T ends at **16:25 for study hall** and **17:05 for TOEFL**, starting at 15:45. Late timing adds 20 minutes. Those rules belong to this preset, not every semester.
 
 Files use UTC instants derived from the school's fixed offset. Independent parser checks pass, but actual imports in Google Calendar, Apple Calendar and Outlook remain unverified. Further investigation of dragging files into new Outlook is deferred while the interaction design takes priority.
 

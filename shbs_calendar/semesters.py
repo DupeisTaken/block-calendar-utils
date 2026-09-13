@@ -64,6 +64,8 @@ def create_semester(workspace, sid, *, blocks=None, name=None, timetable=None,
         write_json(staged / "semester.json", config)
         atomic_write(staged / "timetable.csv", data)
         atomic_write(staged / "exceptions.csv", csv_bytes(EXCEPTION_FIELDS, []))
+        if copy_from and (source / "activities.csv").exists():
+            atomic_write(staged / "activities.csv", (source / "activities.csv").read_bytes())
         if timetable or copy_from:
             load_semester(staged)
         staged.rename(target)
@@ -82,4 +84,7 @@ def describe_semester(folder):
         lines += [f"    {s.start:%H:%M}–{s.end:%H:%M}  {s.block}" for s in sorted(semester.sessions, key=lambda s: s.start) if s.pattern == pattern]
     for block, choices in semester.timing_options.items():
         lines.append(f"Timing choices for {block}: " + ", ".join(key.replace("_", "-") for key in choices))
+    if semester.activity_sessions:
+        lines.append("Optional activities (off by default):")
+        lines += [f"  {s.block} ({semester.activities[s.block]}) · {s.pattern} {s.start:%H:%M}–{s.end:%H:%M}" for s in semester.activity_sessions]
     return "\n".join(lines)

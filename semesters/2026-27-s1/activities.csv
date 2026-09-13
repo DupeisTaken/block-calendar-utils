@@ -1,0 +1,4 @@
+pattern,session_id,activity,kind,start,end
+monday,mon-cas,cas,cas,15:05,16:05
+tuesday,tue-club,club-tue,club,15:45,16:35
+wednesday,wed-club,club-wed,club,15:50,16:40

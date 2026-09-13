@@ -19,6 +19,14 @@ class Course:
 
 
 @dataclass(frozen=True)
+class Activity:
+    activity: str
+    name: str = ""
+    enabled: bool = False
+    location: str = ""
+
+
+@dataclass(frozen=True)
 class Session:
     pattern: str
     session_id: str
@@ -47,10 +55,12 @@ class Semester:
     # block -> choice -> session ID -> {start and/or end}. Choices travel with
     # the selected pattern, including when Thursday is taught on a Saturday.
     timing_options: dict = field(default_factory=dict)
+    activities: dict[str, str] = field(default_factory=dict)
+    activity_sessions: tuple[Session, ...] = ()
 
     @property
     def patterns(self) -> tuple[str, ...]:
-        return tuple(dict.fromkeys(s.pattern for s in self.sessions))
+        return tuple(dict.fromkeys(s.pattern for s in self.sessions + self.activity_sessions))
 
 
 @dataclass(frozen=True)

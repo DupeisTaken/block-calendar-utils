@@ -44,6 +44,23 @@ class GUITests(unittest.TestCase):
     def fields(self, block):
         return dict(self.app.course_vars)[block]
 
+    def test_activity_form_saves_named_clubs_and_opt_in_preview(self):
+        self.assertFalse(self.app.cas_var.get())
+        self.assertFalse(self.app.clubs_var.get())
+        self.app.activity_vars["club-tue"][0].set("Chess")
+        self.app.activity_vars["club-wed"][0].set("Robotics")
+        self.app.cas_var.set(True)
+        self.app.clubs_var.set(True)
+        preview = self.app.preview()
+        self.assertEqual([e.title for e in preview.events], ["CAS", "Chess", "Robotics"])
+        self.assertTrue(self.app.ctx.activities_path.exists())
+        self.assertFalse(self.app.dirty())
+        self.app.profile_var.set("second-student")
+        self.app.switch()
+        self.assertFalse(self.app.cas_var.get())
+        self.assertFalse(self.workspace.settings()["cas"])
+        self.assertFalse(self.workspace.settings()["clubs"])
+
     def test_setup_requires_review_and_activation(self):
         from shbs_calendar.gui import SemesterSetup
         for child in self.root.winfo_children():

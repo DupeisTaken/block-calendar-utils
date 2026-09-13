@@ -155,7 +155,9 @@ def load_semester(folder: Path) -> Semester:
                 sessions.append(session)
             except CalendarError as exc:
                 raise CalendarError(f"timetable.csv:{line}: {exc}") from exc
-        patterns = {s.pattern for s in sessions}
+        from .activities import load_activity_schedule
+        activities, activity_sessions = load_activity_schedule(folder, blocks, sessions)
+        patterns = {s.pattern for s in (*sessions, *activity_sessions)}
         if not sessions or set(weekdays.values()) - patterns:
             raise CalendarError("timetable is empty or weekdays refer to an unknown pattern.")
         if set(blocks) - {s.block for s in sessions}:
@@ -178,7 +180,7 @@ def load_semester(folder: Path) -> Semester:
                     end = parse_time(times["end"]) if "end" in times else s.end
                     if end <= start:
                         raise CalendarError(f"{session_id}: timing option ends before it starts.")
-        return Semester(sid, name, clock, tuple(blocks), weekdays, tuple(sessions), options)
+        return Semester(sid, name, clock, tuple(blocks), weekdays, tuple(sessions), options, activities, activity_sessions)
     except (KeyError, TypeError, ValueError) as exc:
         raise CalendarError(f"{folder}: {exc}") from exc
 

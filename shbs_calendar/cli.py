@@ -78,6 +78,17 @@ def parser():
     sub = actions.add_parser("import", parents=[common], help="Validate and replace selections from a CSV (old file backed up)")
     sub.add_argument("file", type=Path)
 
+    activities = subs.add_parser("activities", parents=[common], help="List CAS/club slots and save club names")
+    actions = activities.add_subparsers(dest="action", required=True)
+    actions.add_parser("list", parents=[common])
+    sub = actions.add_parser("set", parents=[common])
+    sub.add_argument("id", help="Club slot ID from activities list")
+    sub.add_argument("name", help="Club name")
+    sub.add_argument("--room")
+    for action in ("clear", "enable", "disable"):
+        sub = actions.add_parser(action, parents=[common])
+        sub.add_argument("id")
+
     exceptions = subs.add_parser("exceptions", parents=[common], help="Save unusual days; apply with --schedule exceptions")
     actions = exceptions.add_subparsers(dest="action", required=True)
     actions.add_parser("list", parents=[common])
@@ -106,6 +117,8 @@ def parser():
         sub.add_argument("--schedule", choices=["weekdays", "exceptions"], default="weekdays", help="Default: weekdays, ignoring saved exceptions")
         sub.add_argument("--only", action="append", default=[], metavar="BLOCKS", help="Only these saved selections, e.g. B or B,T; repeatable")
         sub.add_argument("--exclude", action="append", default=[], metavar="BLOCKS", help="Omit these blocks for this export, e.g. A or A,T; repeatable")
+        sub.add_argument("--cas", action="store_true", help="Include CAS with its fixed title (default: off)")
+        sub.add_argument("--clubs", action="store_true", help="Include enabled, named clubs (default: off)")
         timing = sub.add_mutually_exclusive_group()
         timing.add_argument("--late", action="store_true", help="Start/end 20 minutes later")
         timing.add_argument("--normal", action="store_true", help="Normal times (default)")
@@ -136,7 +149,7 @@ def arguments(argv):
 
 def command_settings(args, settings=None):
     """Exports never inherit stale GUI dates, lateness or exception choices."""
-    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=args.schedule, only=args.only, exclude=args.exclude)
+    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=args.schedule, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs)
     if bool(args.start) != bool(args.end):
         raise CalendarError("Provide --first-date and --last-date together, or use --dayrange FIRST:LAST.")
     if args.dayrange:
@@ -223,6 +236,31 @@ def course_command(args, ctx):
     print(f"Saved courses: {ctx.courses_path}")
 
 
+def activity_command(args, ctx):
+    expected = digest(ctx.activities_path)
+    items = ctx.activities()
+    if args.action == "list":
+        for item in items:
+            kind = ctx.semester.activities[item.activity]
+            label = "CAS (fixed title)" if kind == "cas" else item.name or "(unnamed club)"
+            slots = ", ".join(f"{s.pattern} {s.start:%H:%M}–{s.end:%H:%M}" for s in ctx.semester.activity_sessions if s.block == item.activity)
+            print(f"{item.activity}: {label} · {slots}")
+        print("Export with --cas / --clubs to include these optional activities.")
+        return
+    matches = [i for i, item in enumerate(items) if item.activity == args.id]
+    if not matches or ctx.semester.activities[args.id] != "club":
+        raise CalendarError("Choose a club ID from activities list. CAS always uses its fixed title.")
+    i = matches[0]
+    if args.action == "set":
+        items[i] = replace(items[i], name=args.name.strip(), enabled=True, location=items[i].location if args.room is None else args.room)
+    elif args.action == "clear":
+        items[i] = replace(items[i], name="", enabled=False)
+    else:
+        items[i] = replace(items[i], enabled=args.action == "enable")
+    ctx.save_activities(items, expected)
+    print(f"Saved activities: {ctx.activities_path}")
+
+
 def exception_command(args, ctx):
     if args.action == "list":
         from .storage import load_overrides
@@ -295,7 +333,7 @@ def main(argv=None):
         settings = workspace.settings()
         sid = workspace.selected_semester(getattr(args, "semester", None))
         profile = getattr(args, "profile", None) or settings["profile"]
-        create = args.command == "init" or (args.command in {"courses", "exceptions"} and args.action not in {"list", "path"})
+        create = args.command == "init" or (args.command in {"courses", "exceptions", "activities"} and args.action not in {"list", "path"})
         ctx = workspace.context(profile, sid, create=create)
         if args.command == "init":
             print(f"Course CSV: {ctx.courses_path}")
@@ -303,6 +341,8 @@ def main(argv=None):
             course_command(args, ctx)
         elif args.command == "exceptions":
             exception_command(args, ctx)
+        elif args.command == "activities":
+            activity_command(args, ctx)
         else:
             preview = ctx.preview(command_settings(args))
             if args.command == "preview":

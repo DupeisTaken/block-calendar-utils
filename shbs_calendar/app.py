@@ -55,7 +55,7 @@ class Workspace:
         load_overrides(folder / "exceptions.csv", definition)
         ctx = self.context(profile or settings["profile"], semester_id, create=True)
         ctx.courses()
-        settings.update(profile=ctx.profile, semester=semester_id, active_semester=semester_id)
+        settings.update(profile=ctx.profile, semester=semester_id, active_semester=semester_id, cas=False, clubs=False)
         self.save_settings(settings)
         return ctx
 
@@ -89,12 +89,21 @@ class Context:
         self.folder, self.data_dir, self.identity = folder, data_dir, identity
         self.courses_path = data_dir / "courses.csv"
         self.exceptions_path = data_dir / "exceptions.csv"
+        self.activities_path = data_dir / "activities.csv"
 
     def courses(self):
         return load_courses(self.courses_path, self.semester)
 
     def exceptions(self):
         return load_overrides(self.exceptions_path, self.semester)
+
+    def activities(self):
+        from .activities import load_activities
+        return load_activities(self.activities_path, self.semester)
+
+    def save_activities(self, items, expected):
+        from .activities import save_activities
+        save_activities(self.activities_path, items, self.semester, expected)
 
     def save_courses(self, courses: list[Course], expected):
         save_courses(self.courses_path, courses, self.semester, expected)
@@ -126,7 +135,20 @@ class Context:
         exclude = self.resolve_blocks(settings.get("exclude", []))
         # Filters belong to this invocation; never alter saved selections.
         courses = [replace(c, enabled=c.enabled and (not only or c.block in only) and c.block not in exclude) for c in courses]
-        preview = build_preview(self.semester, courses, self.identity, first, last, 20 if settings.get("late", False) else 0, school, personal)
+        activities = []
+        if settings.get("cas") or settings.get("clubs"):
+            saved = self.activities()
+            if settings.get("cas"):
+                cas = [replace(a, enabled=True) for a in saved if self.semester.activities[a.activity] == "cas"]
+                if not cas:
+                    raise CalendarError("This semester has no CAS slots in its activities.csv.")
+                activities += cas
+            if settings.get("clubs"):
+                clubs = [a for a in saved if self.semester.activities[a.activity] == "club" and a.enabled]
+                if not clubs:
+                    raise CalendarError("Name a club first: activities list, then activities set ID NAME.")
+                activities += clubs
+        preview = build_preview(self.semester, courses, self.identity, first, last, 20 if settings.get("late", False) else 0, school, personal, activities=activities)
         preview.schedule_mode = mode
         return preview
 
@@ -148,7 +170,7 @@ class Context:
         if not preview.events:
             raise CalendarError("No classes in this range. Check your course selections and dates in the preview.")
         output = output or self.workspace.root / "exports" / f"{self.profile}-{self.semester.id}-{preview.start}-{preview.end}.ics"
-        protected = [self.courses_path, self.exceptions_path, self.workspace.settings_path]
+        protected = [self.courses_path, self.exceptions_path, self.activities_path, self.workspace.settings_path]
         if output.resolve() in [p.resolve() for p in protected]:
             raise CalendarError("Choose a calendar destination outside your configuration files.")
         export_calendar(output, preview.events, overwrite=overwrite, name=f"SHBS · {self.profile}")

@@ -29,6 +29,30 @@ Missing block rows are treated as disabled and are restored as blank rows the ne
 
 Interface saves retain optional room/teacher fields, use atomic replacement, and keep the previous contents in a sibling `.bak` file. The GUI and terminal refuse stale saves when the CSV changed after it was loaded. Editing the same profile simultaneously in multiple interfaces is not recommended.
 
+## Optional activities
+
+School slots live in `semesters/<semester>/activities.csv`. This file is optional; a missing file means the semester has no CAS or clubs. Activity IDs must differ from class blocks, and session IDs must be unique across both timetables.
+
+```csv
+pattern,session_id,activity,kind,start,end
+monday,mon-cas,cas,cas,15:05,16:05
+tuesday,tue-club,club-tue,club,15:45,16:35
+wednesday,wed-club,club-wed,club,15:50,16:40
+```
+
+The included intervals were read from `Timetable Setup!A23:C26` in the supplied workbook: Monday CAS uses the special-session interval, not the ordinary P10 interval. `kind` is `cas` or `club`; one activity ID may have several sessions but must keep the same kind. Activities use the day's resolved pattern and effective timing shift. Semester copying includes this school file but no student club names.
+
+Student names live in the gitignored `local/profiles/<profile>/<semester>/activities.csv`:
+
+```csv
+activity,name,enabled,location
+cas,,false,
+club-tue,Chess Club,true,Library
+club-wed,Robotics Club,true,Lab 2
+```
+
+CAS's name must be blank and its exported title is always `CAS`; `--cas` opts it in. `--clubs` opts in enabled clubs, which require names. Both flags default off. Club files support UTF-8, quoted values, optional enabled/location columns, atomic saves, backups and stale-edit detection just like course files. Filter flags `--only`/`--exclude` affect academic/study blocks, while CAS/clubs have their own opt-in flags.
+
 ## Date exceptions
 
 Shared path: `semesters/<semester>/exceptions.csv`.

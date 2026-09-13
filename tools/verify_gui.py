@@ -61,6 +61,8 @@ def main():
             fields["course"].set(name)
             if block == "T":
                 fields["timing_option"].set("Study hall")
+        app.activity_vars["club-tue"][0].set("Chess Club")
+        app.activity_vars["club-wed"][0].set("Robotics Club")
         app.mode_var.set("Choose a week")
         app.anchor_var.set("2026-09-14")
         app.update_date_fields()
@@ -97,8 +99,13 @@ def main():
                 elif number == 1:
                     capture("preview")
                     app.tabs.select(app.exceptions_tab)
-                else:
+                elif number == 2:
                     capture("exceptions")
+                    app.cas_var.set(True)
+                    app.clubs_var.set(True)
+                    app.tabs.select(app.activities_tab)
+                else:
+                    capture("activities")
                     root.destroy()
                     return
                 root.after(400, lambda: step(number + 1))

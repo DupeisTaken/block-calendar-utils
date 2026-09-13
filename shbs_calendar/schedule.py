@@ -3,7 +3,7 @@
 from datetime import date, datetime, timedelta
 from uuid import UUID, uuid5
 
-from .models import CalendarError, Course, DayOverride, Event, Preview, Semester
+from .models import Activity, CalendarError, Course, DayOverride, Event, Preview, Semester
 from .storage import parse_date, parse_time, validate_courses, validate_overrides
 
 
@@ -33,8 +33,11 @@ def date_range(mode: str, anchor: str = "", weeks: int = 1, end: str = "", *, to
 
 
 def build_preview(semester: Semester, courses: list[Course], profile_id: str, first: date, last: date,
-                  shift: int = 0, school: list[DayOverride] = (), personal: list[DayOverride] = ()) -> Preview:
+                  shift: int = 0, school: list[DayOverride] = (), personal: list[DayOverride] = (),
+                  *, activities: list[Activity] = ()) -> Preview:
     validate_courses(courses, semester)
+    from .activities import validate_activities
+    validate_activities(activities, semester)
     validate_overrides(school, semester)
     validate_overrides(personal, semester)
     if first > last or (last - first).days >= 3660:
@@ -46,10 +49,11 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
     except (ValueError, TypeError) as exc:
         raise CalendarError("Invalid profile identity. Restore profile.json from a backup.") from exc
     selected = {c.block: c for c in courses if c.enabled}
+    selected.update({a.activity: Course(a.activity, "CAS" if semester.activities[a.activity] == "cas" else a.name, a.location, enabled=True) for a in activities if a.enabled})
     school_by_date = {i.date: i for i in school}
     overrides = school_by_date | {i.date: i for i in personal}
     replaced = set(school_by_date) & {i.date for i in personal}
-    patterns = {name: [s for s in semester.sessions if s.pattern == name] for name in semester.patterns}
+    patterns = {name: [s for s in semester.sessions + semester.activity_sessions if s.pattern == name] for name in semester.patterns}
     events, notes = [], []
     # Iterate offsets so even date.max is safe (no increment past the last day).
     for offset in range((last - first).days + 1):

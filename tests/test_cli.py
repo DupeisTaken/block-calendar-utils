@@ -170,6 +170,23 @@ class CLITests(unittest.TestCase):
         self.assertIn("No classes", result.stderr)
         self.assertFalse((self.root / "exports").exists())
 
+    def test_named_clubs_and_cas_are_opt_in(self):
+        self.init()
+        self.ok("activities", "set", "club-tue", "Chess", "--room", "Library")
+        self.ok("activities", "set", "club-wed", "Robotics")
+        self.assertIn("club-tue: Chess", self.ok("activities", "list").stdout)
+        self.assertIn("5 events", self.ok("preview", "--week", "2026-09-14").stdout)
+        self.assertIn("8 events", self.ok("preview", "--week", "2026-09-14", "--cas", "--clubs").stdout)
+        self.ok("activities", "disable", "club-wed")
+        self.assertIn("7 events", self.ok("preview", "--week", "2026-09-14", "--cas", "--clubs").stdout)
+        self.assertEqual(self.run_cli("activities", "set", "cas", "Custom title").returncode, 2)
+        path = self.root / "activities.ics"
+        self.ok("--week", "2026-09-14", "--only", "C", "--cas", "--clubs", "-o", str(path))
+        data = path.read_text()
+        self.assertIn("SUMMARY:CAS", data)
+        self.assertIn("SUMMARY:Chess", data)
+        self.assertNotIn("DESCRIPTION:", data)
+
     def test_temporary_block_filters_do_not_edit_courses_or_enable_blank_blocks(self):
         ctx = self.init()
         self.ok("courses", "set", "B", "Biology")
