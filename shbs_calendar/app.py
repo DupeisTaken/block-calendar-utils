@@ -1,5 +1,6 @@
 """Workspace services: the CLI and GUI call exactly the same operations."""
 
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -120,9 +121,28 @@ class Context:
         personal = [] if mode == "weekdays" else self.exceptions()
         if mode == "exceptions" and not any(first <= item.date <= last for item in school + personal):
             raise CalendarError("Add at least one exception inside the export's first and last dates, or choose the normal weekday schedule.")
-        preview = build_preview(self.semester, self.courses(), self.identity, first, last, 20 if settings.get("late", False) else 0, school, personal)
+        courses = self.courses()
+        only = self.resolve_blocks(settings.get("only", []))
+        exclude = self.resolve_blocks(settings.get("exclude", []))
+        # Filters belong to this invocation; never alter saved selections.
+        courses = [replace(c, enabled=c.enabled and (not only or c.block in only) and c.block not in exclude) for c in courses]
+        preview = build_preview(self.semester, courses, self.identity, first, last, 20 if settings.get("late", False) else 0, school, personal)
         preview.schedule_mode = mode
         return preview
+
+    def resolve_blocks(self, values):
+        result = set()
+        for value in values:
+            for token in value.split(","):
+                token = token.strip()
+                matches = [b for b in self.semester.blocks if b.casefold() == token.casefold()]
+                if token in self.semester.blocks:
+                    result.add(token)
+                elif len(matches) == 1:
+                    result.add(matches[0])
+                else:
+                    raise CalendarError(f"Unknown or ambiguous block {token!r}. Choose from: {', '.join(self.semester.blocks)}.")
+        return result
 
     def export(self, preview, output: Path | None = None, *, overwrite: bool = False) -> Path:
         if not preview.events:

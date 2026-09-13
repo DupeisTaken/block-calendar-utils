@@ -170,6 +170,24 @@ class CLITests(unittest.TestCase):
         self.assertIn("No classes", result.stderr)
         self.assertFalse((self.root / "exports").exists())
 
+    def test_temporary_block_filters_do_not_edit_courses_or_enable_blank_blocks(self):
+        ctx = self.init()
+        self.ok("courses", "set", "B", "Biology")
+        original = ctx.courses_path.read_bytes()
+        for flags, count in [(["--only", "b"], 3), (["--exclude", "a"], 5),
+                             (["--only", "A,B", "--exclude", "B"], 3),
+                             (["--only", "A", "--only", "T"], 5), (["--only", "C"], 0)]:
+            result = self.ok("preview", "--week", "2026-09-14", *flags)
+            self.assertIn(f"{count} events", result.stdout)
+        output = self.root / "only-b.ics"
+        self.ok("export", "--week", "2026-09-14", "--only", "B", "-o", str(output))
+        data = output.read_text(encoding="utf-8")
+        self.assertEqual(data.count("SUMMARY:Biology"), 3)
+        self.assertNotIn("SUMMARY:Example Math", data)
+        self.assertEqual(ctx.courses_path.read_bytes(), original)
+        for flags in [("--only", "unknown"), ("--exclude", "A,")]:
+            self.assertEqual(self.run_cli("preview", "--this-week", *flags).returncode, 2)
+
     def test_context_options_before_after_and_named_like_commands(self):
         self.ok("--profile", "export", "semester", "use", "2026-27-s1")
         self.ok("--profile", "export", "courses", "set", "A", "Math")

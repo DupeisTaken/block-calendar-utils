@@ -103,6 +103,8 @@ def parser():
         sub.add_argument("--last-date", "--end", dest="end", metavar="YYYY-MM-DD")
         sub.add_argument("--weeks", type=int, help="Number of weeks, with a week shortcut")
         sub.add_argument("--schedule", choices=["weekdays", "exceptions"], default="weekdays", help="Default: weekdays, ignoring saved exceptions")
+        sub.add_argument("--only", action="append", default=[], metavar="BLOCKS", help="Only these saved selections, e.g. B or B,T; repeatable")
+        sub.add_argument("--exclude", action="append", default=[], metavar="BLOCKS", help="Omit these blocks for this export, e.g. A or A,T; repeatable")
         timing = sub.add_mutually_exclusive_group()
         timing.add_argument("--late", action="store_true", help="Start/end 20 minutes later")
         timing.add_argument("--normal", action="store_true", help="Normal times (default)")
@@ -130,7 +132,7 @@ def arguments(argv):
 
 def command_settings(args, settings=None):
     """Exports never inherit stale GUI dates, lateness or exception choices."""
-    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=args.schedule)
+    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=args.schedule, only=args.only, exclude=args.exclude)
     if bool(args.start) != bool(args.end):
         raise CalendarError("Provide --first-date and --last-date together, or use --dayrange FIRST:LAST.")
     if args.dayrange:

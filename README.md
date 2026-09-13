@@ -50,6 +50,8 @@ You can omit `export` when supplying export flags. `--this-week` is also availab
 
 Exports go to the gitignored `exports/` folder. Success reports the event count, dates and path. Existing files require `--overwrite`; an empty selection/range reports an error instead of writing an empty calendar.
 
+To export only selected blocks, add `--only B` or `--only B,T`. To omit blocks, add `--exclude A` or `--exclude A,T`. Both accept repeated flags and unambiguous lowercase names. They filter enabled, named courses for this invocation without editing your CSV or enabling unused blocks. If combined, exclusions take precedence. The same flags work with `preview` and `validate`.
+
 ## Unusual school days
 
 ```sh
