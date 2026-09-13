@@ -140,6 +140,21 @@ class CoreTests(unittest.TestCase):
         self.assertNotIn(b"\n", data.replace(b"\r\n", b""))
         self.assertNotIn(b"BEGIN:VEVENT", calendar_bytes([]))
 
+    def test_exported_events_have_no_generated_annotations(self):
+        courses = [replace(c, teacher="Example Teacher", location="Room 12") for c in self.courses]
+        for overrides in ([], [DayOverride(date(2026, 9, 18), "use", "monday", note="Makeup day")]):
+            with self.subTest(overrides=overrides):
+                preview = self.preview(courses=courses, personal=overrides)
+                baseline = self.preview(personal=overrides)
+                self.assertTrue(preview.events)
+                self.assertTrue(all(e.description == "" for e in preview.events))
+                self.assertEqual([(e.uid, e.title, e.start, e.end) for e in preview.events],
+                                 [(e.uid, e.title, e.start, e.end) for e in baseline.events])
+                self.assertTrue(all(e.location == "Room 12" for e in preview.events))
+                self.assertNotIn(b"DESCRIPTION:", calendar_bytes(preview.events))
+                if overrides:
+                    self.assertIn("Makeup day", preview.notes[0])
+
 
 class StorageTests(unittest.TestCase):
     def setUp(self):

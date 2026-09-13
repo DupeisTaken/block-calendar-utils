@@ -130,6 +130,8 @@ Tkinter is needed only for the GUI and is normally included in Python.org deskto
 
 ## Included timetable and calendar files
 
+Exported events contain the course name, start/end times and optional location. No block, teacher or timetable-following annotations are appended. Teacher details remain saved locally; date-exception explanations remain in the preview.
+
 The supplied 2026–27 S1 preset includes only classes/study periods; P&B, CAS, clubs and meals are excluded. Wednesday T runs 15:05–15:45 for both choices. Thursday T ends at **16:25 for study hall** and **17:05 for TOEFL**, starting at 15:45. Late timing adds 20 minutes. Those rules belong to this preset, not every semester.
 
 Files use UTC instants derived from the school's fixed offset. Independent parser checks pass, but actual imports in Google Calendar, Apple Calendar and Outlook remain unverified. Further investigation of dragging files into new Outlook is deferred while the interaction design takes priority.

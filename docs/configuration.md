@@ -21,7 +21,7 @@ Only `block` and `course` headers are mandatory; all other headers may be omitte
 | `block` | Exact configured block key, including case (`El`, not `EL`). One row per block. |
 | `course` | Event title. A named Study Hall is exported like any other selection. |
 | `location` | Optional event location. |
-| `teacher` | Optional teacher included in the event description. |
+| `teacher` | Optional teacher saved locally for reference; not added to calendar events. |
 | `enabled` | `true`/`false` (also accepts yes/no and 1/0). If the header is omitted, a nonempty course is enabled. |
 | `timing_option` | For an enabled T block, `study_hall` or `toefl`. Other blocks use blank unless their semester defines choices. |
 

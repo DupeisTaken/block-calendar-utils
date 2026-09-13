@@ -29,7 +29,7 @@ class InteropTests(unittest.TestCase):
         for actual, expected in zip(events, preview.events):
             self.assertEqual(str(actual["SUMMARY"]), expected.title)
             self.assertEqual(str(actual["LOCATION"]), expected.location)
-            self.assertEqual(str(actual["DESCRIPTION"]), expected.description)
+            self.assertNotIn("DESCRIPTION", actual)
             self.assertEqual(actual.decoded("DTSTART"), expected.start.astimezone(timezone.utc))
             self.assertEqual(actual.decoded("DTEND"), expected.end.astimezone(timezone.utc))
             self.assertEqual(actual.errors, [])

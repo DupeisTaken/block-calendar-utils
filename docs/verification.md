@@ -4,12 +4,12 @@ Date: 2026-09-13. Host: Windows, Python 3.14.5, Tk 8.6.
 
 ## Automated checks
 
-**52 tests passed** after the argument-driven interaction rework, with native Tk tests enabled and the independent `icalendar` parser installed in a local verification environment (5.15 seconds for the final suite run):
+**53 tests passed** after removing generated event annotations, with native Tk tests enabled and the independent `icalendar` parser installed in a local verification environment:
 
-- 20 core/storage tests: all five weekdays, 200 minutes per A–G block, both Thursday T options, late shifts, partial and multi-week ranges, Friday following Monday, weekend makeup, closures, exception precedence, custom patterns, a different semester, invalid inputs, CSV round trips, stale saves, and interrupted-write preservation.
+- 21 core/storage tests: all five weekdays, 200 minutes per A–G block, both Thursday T options, late shifts, partial and multi-week ranges, Friday following Monday, weekend makeup, closures, exception precedence, custom patterns, a different semester, invalid inputs, CSV round trips, stale saves, interrupted-write preservation, and annotation-free events on regular/makeup days while preserving titles, times, locations, IDs and preview explanations.
 - 19 terminal/setup tests: no-argument help without writes/prompts; explicit activation including legacy settings; course commands, timing choices, Unicode metadata, repair by CSV import and atomic input cancellation; dayrange/single-day/endpoints/week shortcuts; exception commands and weekday defaults independent of GUI settings; overwrite/empty export handling; flags before/after actions; actual subprocess execution of both module entry points; no Tk import; empty-workspace drafts; arbitrary X/Y/Z blocks and red/blue patterns; failed-import cleanup; stable generated IDs after clock changes; explicit copies without courses/exceptions; revalidation of edited definitions; per-command semester selection; read-only commands without profile creation; and activation failure without creating student data.
 - 11 native Tk controller tests: save/preview/export parity with shared services, both T choices, external CSV conflicts, exceptions, invalid dates, cancellation, export errors, profile switching, editable endpoints and weekday/exception switching. New setup tests verify explicit review/activation, invalid draft rejection, arbitrary X/Y blocks and a red pattern without a hardcoded Monday default.
-- 2 independent parser tests: exact round-trip titles, locations, descriptions, UTC instants, unique IDs, Unicode/escaped text, and an empty valid calendar. The three-week exception fixture produced the independently expected 74 events.
+- 2 independent parser tests: exact round-trip titles, locations, UTC instants, unique IDs, Unicode/escaped text, absence of event descriptions, and an empty valid calendar. The three-week exception fixture produced the independently expected 74 events.
 
 Command used in the temporary environment:
 

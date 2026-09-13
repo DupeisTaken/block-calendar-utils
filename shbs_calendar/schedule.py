@@ -95,12 +95,9 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
             # Length-prefixed JSON-like components avoid ambiguous name joins.
             key = f"{len(semester.id)}:{semester.id}:{day}:{session.session_id}"
             uid = str(uuid5(namespace, key)) + "@shbs-calendar.local"
-            description = f"Block {course.block}"
-            if course.teacher:
-                description += f"\nTeacher: {course.teacher}"
-            if override and override.action == "use":
-                description += f"\nFollows {pattern}'s timetable"
-            day_events.append(Event(uid, course.block, course.course, start, end, course.location, description))
+            # Calendar entries contain the selected name, times and location.
+            # Keep scheduling explanations in the preview, not event notes.
+            day_events.append(Event(uid, course.block, course.course, start, end, course.location))
         day_events.sort(key=lambda e: (e.start, e.uid))
         for before, after in zip(day_events, day_events[1:]):
             if before.end > after.start:
