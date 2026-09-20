@@ -156,7 +156,7 @@ class GUITests(unittest.TestCase):
         friday = result.events[-1]
         self.assertEqual(friday.start.strftime("%H:%M"), "09:40")
         self.app.remove_exception()
-        with self.assertRaisesRegex(CalendarError, "at least one exception"):
+        with self.assertRaisesRegex(CalendarError, "Follows normal weekdays"):
             self.app.preview()
         self.app.weekdays_var.set(True)
         self.assertEqual(self.app.preview().events[-1].start.strftime("%H:%M"), "10:30")
@@ -202,6 +202,53 @@ class GUITests(unittest.TestCase):
         self.fields("A")["course"].set("Math")
         preview = self.app.preview()
         self.assertEqual((str(preview.start), str(preview.end)), ("2026-09-16", "2026-09-18"))
+
+    def test_single_day_edit_export_and_restore(self):
+        self.fields("T")["course"].set("Study Hall")
+        self.fields("T")["timing_option"].set("Study hall")
+        self.app.mode_var.set("Single day")
+        self.app.update_date_fields()
+        self.assertEqual(str(self.app.end_entry["state"]), "disabled")
+        self.assertEqual(str(self.app.weeks_entry["state"]), "disabled")
+        self.app.anchor_var.set("2026-09-17")
+        self.app.mark_custom_dates()
+        self.assertEqual(self.app.mode_var.get(), "Single day")
+        self.assertEqual(self.app.end_var.get(), "2026-09-17")
+        # A stale/invalid week count is irrelevant when selecting one date.
+        self.app.weeks_var.set("invalid")
+        preview = self.app.preview()
+        self.assertEqual(str(preview.start), "2026-09-17")
+        self.assertEqual(preview.start, preview.end)
+        self.assertEqual(len(preview.events), 1)
+        output = self.workspace.root / "day.ics"
+        with patch("shbs_calendar.gui.filedialog.asksaveasfilename", return_value=str(output)):
+            self.app.export()
+        self.assertEqual(output.read_bytes().count(b"BEGIN:VEVENT"), 1)
+        for child in self.root.winfo_children():
+            child.destroy()
+        from shbs_calendar.gui import CalendarApp
+        self.app = CalendarApp(self.root, self.workspace)
+        self.assertEqual(self.app.mode_var.get(), "Single day")
+        self.assertEqual(self.app.anchor_var.get(), "2026-09-17")
+        self.assertEqual(self.app.preview().events, preview.events)
+        self.app.mode_var.set("First and last dates")
+        self.app.update_date_fields()
+        self.assertEqual(str(self.app.end_entry["state"]), "normal")
+        self.app.mode_var.set("Choose a week")
+        self.app.update_date_fields()
+        self.assertEqual(str(self.app.weeks_entry["state"]), "normal")
+        self.assertEqual((self.app.anchor_var.get(), self.app.end_var.get()), ("2026-09-14", "2026-09-20"))
+
+    def test_single_day_incomplete_edits_and_invalid_date(self):
+        self.app.mode_var.set("Single day")
+        self.app.update_date_fields()
+        for value in ("", "2026-09-", "2026-02-29"):
+            self.app.anchor_var.set(value)
+            self.app.mark_custom_dates()
+            self.assertEqual(self.app.mode_var.get(), "Single day")
+            self.assertEqual(self.app.end_var.get(), value)
+            with self.assertRaises(CalendarError):
+                self.app.preview()
 
     def test_weekday_choice_ignores_saved_exception_without_deleting_it(self):
         self.fields("A")["course"].set("Math")

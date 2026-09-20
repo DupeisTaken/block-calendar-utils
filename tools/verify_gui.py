@@ -106,8 +106,15 @@ def main():
                     app.cas_var.set(True)
                     app.clubs_var.set(True)
                     app.tabs.select(app.activities_tab)
-                else:
+                elif number == 3:
                     capture("activities")
+                    app.mode_var.set("Single day")
+                    app.anchor_var.set("2026-09-17")
+                    app.weekdays_var.set(True)
+                    app.update_date_fields()
+                    app.preview()
+                else:
+                    capture("single-day")
                     root.destroy()
                     return
                 root.after(400, lambda: step(number + 1))

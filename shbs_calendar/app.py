@@ -45,7 +45,7 @@ class Workspace:
         """Old implicit defaults never count as an explicit semester selection."""
         selected = explicit or self.settings()["active_semester"]
         if not selected:
-            raise CalendarError("Select a defined timetable first: semester list, then semester use ID. For a new timetable: semester new ID --blocks X,Y,Z.")
+            raise CalendarError("Select a defined timetable first: --inspect --semesters, then --write --semesters --use ID. For a new timetable: --write --semesters --new ID --blocks X,Y,Z.")
         return selected
 
     def use_semester(self, semester_id, profile=None):
@@ -74,7 +74,7 @@ class Workspace:
             if not (data_dir / "exceptions.csv").exists():
                 atomic_write(data_dir / "exceptions.csv", csv_bytes(EXCEPTION_FIELDS, []), overwrite=False)
         if not identity_path.exists() or not (data_dir / "courses.csv").exists():
-            raise CalendarError(f"Profile {profile!r} is not set up for {semester_id}. Run courses set BLOCK NAME, courses edit, or init first.")
+            raise CalendarError(f"Profile {profile!r} is not set up for {semester_id}.\nRun --write --courses to enter names, or --write --init to create blank files; keep the same --profile and --semester options.")
         identity = read_json(identity_path).get("id")
         try:
             UUID(identity)
@@ -136,7 +136,7 @@ class Context:
         inline_days = {item.date for item in inline}
         personal = [item for item in personal if item.date not in inline_days] + inline
         if mode == "exceptions" and not any(first <= item.date <= last for item in school + personal):
-            raise CalendarError("Add at least one exception inside the export's first and last dates, or choose the normal weekday schedule.")
+            raise CalendarError("No exceptions fall inside the selected dates.\nIn the CLI, remove --schedule exceptions to use normal weekdays, or add --exception DATE RULE inside the range.\nIn the GUI, check Follows normal weekdays or save a rule in Exceptions.")
         courses = self.courses()
         only = self.resolve_blocks(settings.get("only", []))
         exclude = self.resolve_blocks(settings.get("exclude", []))
@@ -153,7 +153,7 @@ class Context:
             if settings.get("clubs"):
                 clubs = [a for a in saved if self.semester.activities[a.activity] == "club" and a.enabled]
                 if not clubs:
-                    raise CalendarError("Name a club first: activities list, then activities set ID NAME.")
+                    raise CalendarError('No enabled clubs are available.\nUse --inspect --activities to find a slot, then --write --activities --set ID "Club name" or --write --activities --enable ID. In the GUI, use CAS & clubs.')
                 activities += clubs
         preview = build_preview(self.semester, courses, self.identity, first, last, 20 if settings.get("late", False) else 0, school, personal, activities=activities)
         preview.schedule_mode = mode

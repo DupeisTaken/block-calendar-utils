@@ -8,12 +8,14 @@ from .storage import parse_date, parse_time, validate_courses, validate_override
 
 
 def date_range(mode: str, anchor: str = "", weeks: int = 1, end: str = "", *, today: date | None = None) -> tuple[date, date]:
-    """Relative presets resolve afresh; custom endpoints are inclusive."""
+    """Relative presets resolve afresh; a single day has identical endpoints."""
     today = today or date.today()
     if type(weeks) is not int or not 1 <= weeks <= 520:
         raise CalendarError("Choose between 1 and 520 weeks.")
     try:
-        if mode == "custom":
+        if mode == "day":
+            first = last = parse_date(anchor)
+        elif mode == "custom":
             first, last = parse_date(anchor), parse_date(end)
         elif mode in {"this", "next", "week"}:
             day = parse_date(anchor) if mode == "week" else today
@@ -22,7 +24,7 @@ def date_range(mode: str, anchor: str = "", weeks: int = 1, end: str = "", *, to
                 first += timedelta(days=7)
             last = first + timedelta(days=7 * weeks - 1)
         else:
-            raise CalendarError("Choose this, next, week, or custom for the date range.")
+            raise CalendarError("Choose day, this, next, week, or custom for the date range.")
     except OverflowError as exc:
         raise CalendarError("That range goes beyond supported calendar dates.") from exc
     if first > last:

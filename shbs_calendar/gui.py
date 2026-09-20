@@ -11,7 +11,7 @@ from .semesters import describe_semester
 from .storage import digest, parse_date, safe_child
 
 BG, INK, MUTED, ACCENT = "#f4f5f1", "#1b302d", "#626e69", "#24695b"
-MODES = {"First and last dates": "custom", "This week": "this", "Next week": "next", "Choose a week": "week"}
+MODES = {"Single day": "day", "First and last dates": "custom", "This week": "this", "Next week": "next", "Choose a week": "week"}
 
 
 def option_label(option):
@@ -200,7 +200,8 @@ class CalendarApp:
         ttk.Button(row, text="Refresh preview", command=lambda: self.run(self.preview)).pack(side="right")
         dates = ttk.Frame(self.preview_tab)
         dates.pack(fill="x", pady=12)
-        ttk.Label(dates, text="First date").pack(side="left")
+        self.anchor_label = ttk.Label(dates, text="First date")
+        self.anchor_label.pack(side="left")
         self.anchor_entry = ttk.Entry(dates, textvariable=self.anchor_var, width=13)
         self.anchor_entry.pack(side="left", padx=8)
         ttk.Label(dates, text="Last date (included)").pack(side="left", padx=(12, 0))
@@ -222,7 +223,7 @@ class CalendarApp:
         self.preview_widget.configure(yscrollcommand=scroll.set)
         scroll.pack(side="right", fill="y")
         self.preview_widget.pack(fill="both", expand=True)
-        self.set_preview_text("Choose a range above, then refresh the preview.\n\nOnly enabled courses and study periods are included.")
+        self.set_preview_text("Choose Single day, a date range or a week above, then refresh the preview.\n\nOnly enabled courses and study periods are included.")
 
     def _exceptions_layout(self):
         ttk.Label(self.exceptions_tab, text="When a school day is different", style="Section.TLabel").pack(anchor="w")
@@ -398,9 +399,11 @@ class CalendarApp:
 
     def update_date_fields(self):
         mode = MODES[self.mode_var.get()]
-        self.weeks_entry.configure(state="disabled" if mode == "custom" else "normal")
-        # Presets fill both endpoints. Editing either date turns the range into
-        # an explicit range, so visible values always match the exported dates.
+        self.weeks_entry.configure(state="disabled" if mode in {"custom", "day"} else "normal")
+        self.anchor_label.configure(text="Date" if mode == "day" else "First date")
+        self.end_entry.configure(state="disabled" if mode == "day" else "normal")
+        # Presets fill both endpoints. Week edits become custom ranges; day
+        # edits keep identical endpoints so visible and exported dates agree.
         if mode != "custom":
             first, last = self.ctx.dates(self.range_settings())
             self.anchor_var.set(str(first))
@@ -408,6 +411,12 @@ class CalendarApp:
         self.displayed_dates = (self.anchor_var.get(), self.end_var.get())
 
     def mark_custom_dates(self):
+        # Keep single-day edits in this mode, including paste/cut and incomplete
+        # input. Validation happens on preview; the end always mirrors the date.
+        if MODES[self.mode_var.get()] == "day":
+            self.end_var.set(self.anchor_var.get())
+            self.displayed_dates = (self.anchor_var.get(), self.end_var.get())
+            return
         if (self.anchor_var.get(), self.end_var.get()) != self.displayed_dates:
             self.mode_var.set("First and last dates")
             self.weeks_entry.configure(state="disabled")
@@ -423,7 +432,9 @@ class CalendarApp:
         self.status.set("Add or review exceptions within the first and last dates, then return to Dates & preview.")
 
     def range_settings(self):
-        return dict(self.settings, mode=MODES[self.mode_var.get()], anchor=self.anchor_var.get().strip(), end=self.end_var.get().strip(), weeks=1 if MODES[self.mode_var.get()] == "custom" else int(self.weeks_var.get()), late=self.late_var.get(), schedule_mode="weekdays" if self.weekdays_var.get() else "exceptions", cas=self.cas_var.get(), clubs=self.clubs_var.get())
+        mode = MODES[self.mode_var.get()]
+        anchor = self.anchor_var.get().strip()
+        return dict(self.settings, mode=mode, anchor=anchor, end=anchor if mode == "day" else self.end_var.get().strip(), weeks=1 if mode in {"custom", "day"} else int(self.weeks_var.get()), late=self.late_var.get(), schedule_mode="weekdays" if self.weekdays_var.get() else "exceptions", cas=self.cas_var.get(), clubs=self.clubs_var.get())
 
     def set_preview_text(self, text):
         self.preview_widget.configure(state="normal")
@@ -549,7 +560,7 @@ class SemesterSetup:
         scroll.pack(side="right", fill="y")
         self.text.configure(yscrollcommand=scroll.set)
         self.text.pack(fill="both", expand=True)
-        self.set_text("Choose an existing semester above to review its timetable.\n\nTo define different blocks and times:\n\npython -m shbs-calendar semester new spring --blocks X,Y,Z\n\nFill semesters/spring/timetable.csv, then run:\n\npython -m shbs-calendar semester use spring\n\nClose and reopen this window after creating a new definition.")
+        self.set_text("Choose an existing semester above to review its timetable.\n\nTo define different blocks and times:\n\npython -m shbs-calendar --semesters --new spring --blocks X,Y,Z\n\nFill semesters/spring/timetable.csv, then run:\n\npython -m shbs-calendar --semesters --use spring\n\nClose and reopen this window after creating a new definition.")
 
     def set_text(self, value):
         self.text.configure(state="normal")

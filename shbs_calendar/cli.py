@@ -1,184 +1,287 @@
-"""Argument-driven commands; only `courses edit` collects interactive input."""
+"""Argument-driven commands with explicit course and club name entry prompts."""
 
 import argparse
 import re
 import shutil
 import sys
 from dataclasses import replace
+from datetime import date
+from difflib import get_close_matches
 from pathlib import Path
 
 from .app import DEFAULT_ROOT, Workspace
-from .models import CalendarError, DayOverride
+from .cli_dates import DATE_HELP, RANGE_HELP, parse_cli_date, parse_cli_range
+from .help_style import SpacedHelpFormatter, write_help, emit, ask, error_message
+from .cli_interface import normalize, render_help, public_path, path_of
+from .models import CalendarError, DestinationExistsError, DayOverride
 from .schedule import preview_text
 from .semesters import create_semester, describe_semester
-from .storage import digest, load_courses, parse_date, safe_child
+from .storage import digest, load_courses, safe_child
 
-EXAMPLES = """Start once:
-  python -m shbs-calendar semester list
-  python -m shbs-calendar semester show 2026-27-s1
-  python -m shbs-calendar semester use 2026-27-s1
-  python -m shbs-calendar courses edit
+# Aliases are scoped to their parent command and always resolve to canonical
+# names. For example, `s` means semester at the top level and set under courses.
+COMMAND_ALIASES = {
+    "gui": "g", "init": "i", "semester": "s", "courses": "c",
+    "activities": "a", "exceptions": "e", "export": "x", "preview": "p",
+    "validate": "v", "list": "ls", "show": "sh", "use": "u", "new": "n",
+    "edit": "e", "set": "s", "clear": "c", "enable": "on",
+    "disable": "off", "import": "i", "path": "p", "remove": "rm", "help": "h",
+}
 
-Then export:
-  python -m shbs-calendar --dayrange 2026-09-14:2026-09-18
-  python -m shbs-calendar preview --next-week
-  python -m shbs-calendar --next-week --late
 
-A different semester:
-  python -m shbs-calendar semester new spring --blocks X,Y,Z
-  (fill its timetable.csv, then run semester use spring)
+def add_command(subs, name, **kwargs):
+    child = subs.add_parser(name, aliases=[COMMAND_ALIASES[name]], **kwargs)
+    child.set_defaults(**{subs.dest: name})
+    return child
 
-Use COMMAND --help for options. macOS: use python3 instead of python.
-"""
+
+def help_parser(root, topics):
+    """Resolve help through the real command tree, including its short names."""
+    current = root
+    for topic in topics:
+        children = next((a.choices for a in current._actions if isinstance(a, argparse._SubParsersAction)), {})
+        if topic not in children:
+            raise CalendarError(f"Unknown help topic {topic!r}. Run python -m shbs-calendar {public_path(path_of(current))} --help for available commands.")
+        current = children[topic]
+    return current
+
+
+class FriendlyParser(argparse.ArgumentParser):
+    """Keep errors script-safe while adding a correction and local help route."""
+
+    def __init__(self, *args, **kwargs):
+        # Only documented aliases are accepted; a typo must not pick an action.
+        kwargs.setdefault("allow_abbrev", False)
+        kwargs.setdefault("formatter_class", SpacedHelpFormatter)
+        # Python 3.14 adds its own palette; use the same restrained styling on
+        # every supported Python version and honor our output-stream detection.
+        if sys.version_info >= (3, 14):
+            kwargs["color"] = False
+        super().__init__(*args, **kwargs)
+
+    def format_help(self):
+        return render_help(self)
+
+    def print_help(self, file=None):
+        write_help(self.format_help(), file if file is not None else sys.stdout)
+
+    def option_names(self):
+        # argparse reports leftover unknown flags at the root parser. Include
+        # child options there so a typo such as --wek can still suggest --week.
+        names = set(self._option_string_actions)
+        for action in self._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for child in action.choices.values():
+                    names.update(child.option_names())
+        return names
+
+    def error(self, message):
+        # Argparse's diagnostics include every legacy alias. Show the public
+        # long spelling so corrections follow the same vocabulary as help.
+        message = re.sub(r"(--[\w-]+)(?:/--?[\w-]+)+", r"\1", message)
+        hints = []
+        if "unrecognized arguments:" in message:
+            for token in message.split("unrecognized arguments:", 1)[1].split():
+                if token.startswith("-"):
+                    matches = get_close_matches(token.split("=", 1)[0], sorted(self.option_names()), n=1, cutoff=0.65)
+                    if matches:
+                        hints.append(f"Did you mean {matches[0]}?")
+        if "expected" in message and ("--exception" in message or "-e:" in message):
+            hints.append("An exception takes a DATE and a RULE, e.g. --exception 9.18 Mon or --exception 9.18 off.")
+        if "expected" in message and "--day" in message:
+            hints.append("Try -d 9.18 or -d 9.14:9.18.")
+        error_message(message + ("\n" + "\n".join(hints) if hints else ""), public_path(path_of(self), getattr(self, "navigation_mode", None)) + " --docs")
+        self.exit(2)
+
+
+class DocumentationAction(argparse.Action):
+    """Expanded help exits before validation, prompts or any workspace writes."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        write_help(render_help(parser, detailed=True), sys.stdout)
+        parser.exit()
+
+
+class DateSelector(argparse.Action):
+    """Aliases share a value, but supplying two selectors must not hide one."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if getattr(namespace, self.dest, None) is not None:
+            raise argparse.ArgumentError(self, "Choose one date selector. Put the whole range in one flag, e.g. -d 9.14:9.18.")
+        setattr(namespace, self.dest, values)
 
 
 def parser():
     # Suppression lets context flags work before OR after an action without
     # child-parser defaults erasing the values already read by its parent.
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--root", type=Path, default=argparse.SUPPRESS, help="Project/data folder")
-    common.add_argument("--profile", default=argparse.SUPPRESS, help="Student profile (default: active profile or me)")
-    common.add_argument("--semester", default=argparse.SUPPRESS, help="Use this defined semester for this command")
-    result = argparse.ArgumentParser(prog="python -m shbs-calendar", parents=[common],
+    common.add_argument("--root", "-r", type=Path, metavar="PATH", default=argparse.SUPPRESS, help="Project/data folder")
+    common.add_argument("--profile", "-p", metavar="NAME", default=argparse.SUPPRESS, help="Student profile (default: active profile or me)")
+    common.add_argument("--semester", "-s", metavar="ID", default=argparse.SUPPRESS, help="Use this defined semester for this command")
+    common.add_argument("--docs", action=DocumentationAction, nargs=0, default=argparse.SUPPRESS, help="Read complete documentation for this action")
+    result = FriendlyParser(prog="python -m shbs-calendar", parents=[common],
         description="Define a timetable, name your courses, export selected dates.",
-        epilog=EXAMPLES, formatter_class=argparse.RawDescriptionHelpFormatter)
+        usage="%(prog)s [COMMAND] [OPTIONS]")
     subs = result.add_subparsers(dest="command")
-    subs.add_parser("gui", parents=[common], help="Open the desktop interface")
-    subs.add_parser("init", parents=[common], help="Create blank course CSVs for a selected semester")
-    semester = subs.add_parser("semester", parents=[common], help="Define, inspect and select a semester")
-    actions = semester.add_subparsers(dest="action", required=True)
-    actions.add_parser("list", parents=[common], help="List definitions and incomplete drafts")
+    guide = add_command(subs, "help", parents=[common], help="First-use guide or help for a command")
+    guide.add_argument("topics", nargs="*", metavar="COMMAND", help="Optional command and subcommand, e.g. --activities --set")
+    add_command(subs, "gui", parents=[common], help="Open the desktop interface")
+    add_command(subs, "init", parents=[common], help="Create blank course CSVs for a selected semester")
+    semester = add_command(subs, "semester", parents=[common], help="Define, inspect and select a semester")
+    actions = semester.add_subparsers(dest="action")
+    add_command(actions, "list", parents=[common], help="List definitions and incomplete drafts")
     for action in ("show", "use"):
-        sub = actions.add_parser(action, parents=[common], help="Display the timetable" if action == "show" else "Validate and select a timetable; create blank courses")
-        sub.add_argument("id")
-    new = actions.add_parser("new", parents=[common], help="Create a definition; without a CSV it starts as a draft")
-    new.add_argument("id")
+        sub = add_command(actions, action, parents=[common], help="Display the timetable" if action == "show" else "Validate and select a timetable; create blank courses")
+        sub.add_argument("id", help="Semester ID from --inspect --semesters")
+    new = add_command(actions, "new", parents=[common], help="Create a definition; without a CSV it starts as a draft")
+    new.add_argument("id", help="New semester folder name; must not already exist")
     source = new.add_mutually_exclusive_group(required=True)
-    source.add_argument("--blocks", help="Comma-separated block names, e.g. X,Y,Z")
-    source.add_argument("--copy", dest="copy_from", help="Explicitly reuse another semester's definition")
-    new.add_argument("--name", help="Display name")
-    new.add_argument("--timetable", type=Path, help="CSV with pattern,block,start,end columns")
-    new.add_argument("--weekdays", help="e.g. mon=red,tue=blue; omitted days off. Default: Monday–Friday patterns")
-    new.add_argument("--utc-offset", help="Fixed school clock, default +08:00")
-    new.add_argument("--noon-cutoff", help="Half-day dividing time, default 12:30")
+    source.add_argument("--blocks", "-b", help="Comma-separated block names, e.g. X,Y,Z")
+    source.add_argument("--copy", "-c", dest="copy_from", metavar="ID", help="Copy a semester definition; only --name may override a field")
+    new.add_argument("--name", "-N", help="Display name")
+    new.add_argument("--timetable", "-t", type=Path, metavar="FILE", help="CSV with pattern,block,start,end columns")
+    new.add_argument("--weekdays", "-W", help="e.g. mon=red,tue=blue; omitted days off. Default: Monday–Friday patterns")
+    new.add_argument("--utc-offset", "-z", metavar="OFFSET", help="Fixed school clock, default +08:00; negative example: --utc-offset=-05:00")
+    new.add_argument("--noon-cutoff", "-C", metavar="HH:MM", help="Half-day dividing time, default 12:30")
 
-    courses = subs.add_parser("courses", parents=[common], help="Name classes or study periods for this semester")
-    actions = courses.add_subparsers(dest="action", required=True)
+    courses = add_command(subs, "courses", parents=[common], help="Name classes or study periods for this semester")
+    actions = courses.add_subparsers(dest="action")
     for action in ("list", "path"):
-        actions.add_parser(action, parents=[common])
-    edit = actions.add_parser("edit", parents=[common], help="Prompt for course names, then save once")
+        add_command(actions, action, parents=[common])
+    edit = add_command(actions, "edit", parents=[common], help="Prompt for course names, then save once")
     edit.add_argument("blocks", nargs="*", help="Only ask about these blocks (default: all)")
-    sub = actions.add_parser("set", parents=[common], help="Set one course; saves immediately")
-    sub.add_argument("block")
+    sub = add_command(actions, "set", parents=[common], help="Set one course; saves immediately")
+    sub.add_argument("block", help="Block key from --inspect --courses")
     sub.add_argument("name", help="Course name, or Study Hall")
-    sub.add_argument("--room")
-    sub.add_argument("--teacher")
-    sub.add_argument("--timing", help="Semester-defined choice, e.g. study-hall or toefl")
+    sub.add_argument("--room", "-R", help="Room or location")
+    sub.add_argument("--teacher", "-t", help="Teacher name (local reference only)")
+    sub.add_argument("--timing", "-T", help="Semester-defined choice, e.g. study-hall or toefl")
     for action in ("clear", "enable", "disable"):
-        sub = actions.add_parser(action, parents=[common])
-        sub.add_argument("blocks", nargs="+")
-    sub = actions.add_parser("import", parents=[common], help="Validate and replace selections from a CSV (old file backed up)")
-    sub.add_argument("file", type=Path)
+        sub = add_command(actions, action, parents=[common])
+        sub.add_argument("blocks", nargs="+", help="One or more block keys from --inspect --courses")
+    sub = add_command(actions, "import", parents=[common], help="Validate and replace selections from a CSV (old file backed up)")
+    sub.add_argument("file", type=Path, help="Course CSV to validate and import; replaces all course selections")
 
-    activities = subs.add_parser("activities", parents=[common], help="List CAS/club slots and save club names")
-    actions = activities.add_subparsers(dest="action", required=True)
-    actions.add_parser("list", parents=[common])
-    sub = actions.add_parser("set", parents=[common])
-    sub.add_argument("id", help="Club slot ID from activities list")
+    activities = add_command(subs, "activities", parents=[common], help="List CAS/club slots and save club names",
+        description="Run -a to enter club names for the predefined times. No timetable editing needed.",
+        epilog='Examples:\n  --write --activities\n  --inspect --activities\n  --write --activities --set club-tue "Chess Club"\n\nInclude saved clubs with --export --day DATE --clubs.\nCAS has a fixed name; use --cas.')
+    actions = activities.add_subparsers(dest="action")
+    add_command(actions, "list", parents=[common], help="Show activity IDs, names and times")
+    edit = add_command(actions, "edit", parents=[common], help="Prompt for club names, then save once (default)")
+    edit.add_argument("ids", nargs="*", help="Only these club slots (default: all clubs)")
+    sub = add_command(actions, "set", parents=[common], help="Save a club name for a slot",
+        epilog='Example: python -m shbs-calendar --write --activities --set club-tue "Chess Club" --room Library')
+    sub.add_argument("id", help="Club slot ID from --inspect --activities")
     sub.add_argument("name", help="Club name")
-    sub.add_argument("--room")
+    sub.add_argument("--room", "-R", help="Room or location")
     for action in ("clear", "enable", "disable"):
-        sub = actions.add_parser(action, parents=[common])
-        sub.add_argument("id")
+        sub = add_command(actions, action, parents=[common], help={"clear": "Clear a club name", "enable": "Include a named club", "disable": "Keep a club name but exclude it"}[action])
+        sub.add_argument("id", help="Club slot ID from --inspect --activities")
 
-    exceptions = subs.add_parser("exceptions", parents=[common], help="Save unusual days; apply with --schedule exceptions")
-    actions = exceptions.add_subparsers(dest="action", required=True)
-    actions.add_parser("list", parents=[common])
-    sub = actions.add_parser("remove", parents=[common], help="Remove your exception; school rules may still apply")
-    sub.add_argument("date")
-    sub = actions.add_parser("set", parents=[common], help="Save or replace one unusual date")
-    sub.add_argument("date")
+    exceptions = add_command(subs, "exceptions", parents=[common], help="Save unusual days; apply with --schedule exceptions")
+    actions = exceptions.add_subparsers(dest="action")
+    add_command(actions, "list", parents=[common])
+    sub = add_command(actions, "remove", parents=[common], help="Remove your exception; school rules may still apply")
+    sub.add_argument("date", help="Personal rule date, e.g. 2026-09-18; school rules remain")
+    sub = add_command(actions, "set", parents=[common], help="Save or replace one unusual date")
+    sub.add_argument("date", help="Date to change, e.g. 2026-09-18; replaces your entire rule for this date")
     choice = sub.add_mutually_exclusive_group(required=True)
-    choice.add_argument("--off", action="store_true", help="No classes")
-    choice.add_argument("--follow", help="Timetable pattern, e.g. monday")
-    choice.add_argument("--late", action="store_true", help="Usual pattern, 20 minutes later")
-    choice.add_argument("--normal", action="store_true", help="Usual pattern, normal times")
-    choice.add_argument("--no-morning", action="store_true", help="Usual pattern, remove morning sessions")
-    choice.add_argument("--no-afternoon", action="store_true", help="Usual pattern, remove afternoon sessions")
-    sub.add_argument("--shift", type=int, help="With --follow only: replace export timing by this many minutes")
-    sub.add_argument("--half-day", choices=["no-morning", "no-afternoon"], help="Also filter a saved weekday/timing override")
-    sub.add_argument("--note", default="")
+    choice.add_argument("--off", "-O", action="store_true", help="No events, including CAS and clubs")
+    choice.add_argument("--follow", "-f", metavar="PATTERN", help="Timetable pattern, e.g. monday; see --inspect --semesters --show ID")
+    choice.add_argument("--late", "-l", action="store_true", help="Usual pattern, 20 minutes later")
+    choice.add_argument("--normal", "-N", action="store_true", help="Usual pattern, normal times")
+    choice.add_argument("--no-morning", "-m", action="store_true", help="Usual pattern, remove morning sessions")
+    choice.add_argument("--no-afternoon", "-a", action="store_true", help="Usual pattern, remove afternoon sessions")
+    sub.add_argument("--shift", "-S", type=int, metavar="MINUTES", help="With --follow only: replace export timing by -720 to 720 minutes; must stay within the day")
+    sub.add_argument("--half-day", "-H", choices=["no-morning", "no-afternoon"], help="Also filter a saved weekday/timing override")
+    sub.add_argument("--note", "-n", default="", metavar="TEXT", help="Explanation shown in previews")
 
     for command in ("export", "preview", "validate"):
-        sub = subs.add_parser(command, parents=[common], help={"export": "Write a calendar file", "preview": "Show dates and classes", "validate": "Check courses, timetable and selected dates"}[command])
+        sub = add_command(subs, command, parents=[common], help={"export": "Write a calendar file", "preview": "Show dates and classes", "validate": "Check courses, timetable and selected dates"}[command], epilog="Date formats:\n" + DATE_HELP + "\n\nExamples:\n" + RANGE_HELP)
         dates = sub.add_mutually_exclusive_group()
-        dates.add_argument("--day-range", "--dayrange", dest="dayrange", metavar="FIRST:LAST", help="Inclusive dates: 2026-09-14:2026-09-18 or 2026-09-14-2026-09-18; one date also works")
-        dates.add_argument("--first-date", "--start", dest="start", metavar="YYYY-MM-DD")
-        dates.add_argument("--week", metavar="YYYY-MM-DD", help="Any date in the first Monday–Sunday week")
-        dates.add_argument("--this-week", action="store_true")
-        dates.add_argument("--next-week", action="store_true")
-        sub.add_argument("--last-date", "--end", dest="end", metavar="YYYY-MM-DD")
-        sub.add_argument("--weeks", type=int, help="Number of weeks, with a week shortcut")
-        sub.add_argument("--schedule", choices=["weekdays", "exceptions"], help="weekdays ignores exceptions; exceptions applies saved files as well as inline rules")
-        sub.add_argument("--exception", nargs=2, action="append", default=[], metavar=("DATE", "RULE"), help="Repeat for weekday changes (Mon–Sun), no-morning, no-afternoon, off, late or normal")
-        sub.add_argument("--only", action="append", default=[], metavar="BLOCKS", help="Only these saved selections, e.g. B or B,T; repeatable")
-        sub.add_argument("--exclude", action="append", default=[], metavar="BLOCKS", help="Omit these blocks for this export, e.g. A or A,T; repeatable")
-        sub.add_argument("--cas", action="store_true", help="Include CAS with its fixed title (default: off)")
-        sub.add_argument("--clubs", action="store_true", help="Include enabled, named clubs (default: off)")
+        dates.add_argument("--day", "-d", "--day-range", "--dayrange", dest="day", action=DateSelector, metavar="DATE[:DATE]", help="One day or inclusive range, e.g. 9.18 or 9.14:9.18; --day-range and --dayrange also work")
+        dates.add_argument("--first-date", "--start", "-f", dest="start", metavar="DATE", help="First inclusive date; also supply --last-date")
+        dates.add_argument("--week", "-w", metavar="DATE", help="Any date in the first Monday–Sunday week, e.g. 9.14")
+        dates.add_argument("--this-week", "-t", action="store_true", help="Current Monday–Sunday")
+        dates.add_argument("--next-week", "-x", action="store_true", help="Next Monday–Sunday")
+        sub.add_argument("--last-date", "--end", "-u", dest="end", metavar="DATE", help="Last inclusive date; also supply --first-date")
+        sub.add_argument("--weeks", "-n", type=int, metavar="COUNT", help="1–520 consecutive weeks; only with --week, --this-week or --next-week")
+        sub.add_argument("--schedule", "-S", choices=["weekdays", "exceptions"], help="weekdays ignores exceptions; exceptions applies saved files as well as inline rules")
+        sub.add_argument("--exception", "-e", nargs=2, action="append", default=[], metavar=("DATE", "RULE"), help="Repeat for weekday changes (Mon–Sun), no-morning, no-afternoon, off, late or normal")
+        sub.add_argument("--only", "-i", action="append", default=[], metavar="BLOCKS", help="Only these saved selections, e.g. B or B,T; repeatable")
+        sub.add_argument("--exclude", "-X", action="append", default=[], metavar="BLOCKS", help="Omit these blocks for this export, e.g. A or A,T; repeatable")
+        sub.add_argument("--cas", "-c", action="store_true", help="Include CAS with its fixed title (default: off)")
+        sub.add_argument("--clubs", "-C", action="store_true", help="Include enabled, named clubs (default: off)")
         timing = sub.add_mutually_exclusive_group()
-        timing.add_argument("--late", action="store_true", help="Start/end 20 minutes later")
-        timing.add_argument("--normal", action="store_true", help="Normal times (default)")
+        timing.add_argument("--late", "-l", action="store_true", help="Start/end 20 minutes later")
+        timing.add_argument("--normal", "-N", action="store_true", help="Normal times (default)")
         if command == "export":
-            sub.add_argument("--output", "-o", type=Path)
-            sub.add_argument("--overwrite", action="store_true")
+            sub.add_argument("--output", "-o", type=Path, metavar="FILE", help="Destination .ics file; relative to the current terminal folder. Default: ROOT/exports/PROFILE-SEMESTER-FIRST-LAST.ics")
+            sub.add_argument("--overwrite", "-O", action="store_true", help="Replace the existing destination; add to the same export command (no value or prompt)")
         if command == "preview":
-            sub.add_argument("--width", type=int, help="Terminal preview width (20–300); default: detect terminal, fallback 120")
-            sub.add_argument("--layout", choices=["columns", "list"], default="columns", help="Default: days side by side when space permits")
+            sub.add_argument("--width", "-W", type=int, metavar="NUMBER", help="Terminal preview width (20–300); default: detect terminal, fallback 120")
+            sub.add_argument("--layout", "-L", choices=["columns", "list"], default="columns", help="Default: days side by side when space permits")
     return result
 
 
-def arguments(argv):
-    """Insert `export` for a flag-only invocation, skipping global flag values."""
+def arguments(argv, root=None):
+    """Resolve entry shortcuts, skipping global values before inspecting flags."""
     index = 0
     while index < len(argv):
         token = argv[index]
-        if token in {"--root", "--profile", "--semester"}:
+        if token in {"-p", "-s"} and (index + 1 == len(argv) or argv[index + 1].startswith("-")):
+            break
+        if token in {"--root", "--profile", "--semester", "-r", "-p", "-s"}:
             index += 2
         elif any(token.startswith(flag + "=") for flag in ("--root", "--profile", "--semester")):
             index += 1
+        elif len(token) > 2 and token[:2] in {"-r", "-p", "-s"}:
+            index += 1
         else:
             break
-    if index < len(argv) and argv[index].startswith("-") and argv[index] not in {"-h", "--help"}:
-        return argv[:index] + ["export"] + argv[index:]
-    return argv
+    # Bare command names retain their old flags. An old profile/semester short
+    # with an explicit value is also kept for existing scripts, never advertised.
+    legacy = index < len(argv) and not argv[index].startswith("-")
+    legacy = legacy or any(token in {"-p", "-s"} and i + 1 < len(argv) and not argv[i + 1].startswith("-") for i, token in enumerate(argv[:index]))
+    legacy = legacy or any(token.startswith(("-p", "-s")) and not token.startswith("--") and len(token) > 2 for token in argv[:index])
+    if legacy:
+        if index < len(argv) and argv[index] in {"-a", "--activities"}:
+            return argv[:index] + ["activities"] + argv[index + 1:]
+        if index < len(argv) and argv[index].startswith("-") and argv[index] not in {"-h", "--help"}:
+            return argv[:index] + ["export"] + argv[index:]
+        return argv
+    return normalize(argv, root if root is not None else parser())
 
 
-def command_settings(args, settings=None):
+def command_settings(args, settings=None, *, today=None):
     """Exports never inherit stale GUI dates, lateness or exception choices."""
     mode = args.schedule or ("inline" if args.exception else "weekdays")
     if args.exception and mode == "weekdays":
         raise CalendarError("--schedule weekdays ignores exceptions. Omit it when using --exception.")
-    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=mode, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs, inline_exceptions=args.exception)
-    if bool(args.start) != bool(args.end):
-        raise CalendarError("Provide --first-date and --last-date together, or use --dayrange FIRST:LAST.")
-    if args.dayrange:
-        dashed = re.fullmatch(r"(\d{4}-\d{2}-\d{2})-(\d{4}-\d{2}-\d{2})", args.dayrange)
-        endpoints = list(dashed.groups()) if dashed else args.dayrange.split(":")
-        if len(endpoints) not in (1, 2) or not all(endpoints):
-            raise CalendarError("Use --dayrange YYYY-MM-DD:YYYY-MM-DD (both dates included).")
-        result.update(mode="custom", anchor=endpoints[0], end=endpoints[-1])
-    elif args.start:
-        result.update(mode="custom", anchor=args.start, end=args.end)
-    elif args.week:
-        result.update(mode="week", anchor=args.week)
+    today = today or date.today()
+    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=mode, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs)
+    if (args.start is None) != (args.end is None):
+        raise CalendarError("Provide --first-date and --last-date together, or use --day DATE / --day-range FIRST:LAST.")
+    if args.day is not None:
+        first, last = parse_cli_range(args.day, today=today)
+        result.update(mode="day" if first == last else "custom", anchor=first.isoformat(), end=last.isoformat())
+    elif args.start is not None:
+        first, last = parse_cli_date(args.start, today=today), parse_cli_date(args.end, today=today)
+        if first > last:
+            raise CalendarError("The last date must be on or after the first date. Include both years for a range crossing New Year.")
+        result.update(mode="custom", anchor=first.isoformat(), end=last.isoformat())
+    elif args.week is not None:
+        result.update(mode="week", anchor=parse_cli_date(args.week, today=today).isoformat())
     elif args.this_week or args.next_week:
         result["mode"] = "next" if args.next_week else "this"
     else:
-        raise CalendarError("Choose dates with --dayrange FIRST:LAST, --this-week, --next-week, or --week YYYY-MM-DD.")
+        raise CalendarError("Choose dates with --day YYYY-MM-DD, --day-range FIRST:LAST, --this-week, --next-week, or --week YYYY-MM-DD.")
     if args.weeks is not None:
-        if result["mode"] == "custom":
-            raise CalendarError("--weeks applies to a week shortcut, not a date range.")
+        if result["mode"] in {"custom", "day"}:
+            raise CalendarError("--weeks applies only to --week, --this-week or --next-week.")
         result["weeks"] = args.weeks
+    # Inline rules reach the existing exception composer with canonical dates.
+    result["inline_exceptions"] = [(parse_cli_date(day, today=today).isoformat(), rule) for day, rule in args.exception]
     return result
 
 
@@ -193,13 +296,13 @@ def timing_choice(value, choices):
 
 def course_command(args, ctx):
     if args.action == "path":
-        print(ctx.courses_path)
+        emit(ctx.courses_path)
         return
     expected = digest(ctx.courses_path)
     if args.action == "import":
         # A valid import can also repair a manually damaged selections file.
         ctx.save_courses(load_courses(args.file, ctx.semester), expected)
-        print(f"Saved courses: {ctx.courses_path}")
+        emit(f"Saved courses: {ctx.courses_path}")
         return
     courses = ctx.courses()
     by_block = {course.block: i for i, course in enumerate(courses)}
@@ -207,26 +310,27 @@ def course_command(args, ctx):
     if set(blocks) - set(by_block):
         raise CalendarError("Unknown block. This semester defines: " + ", ".join(by_block))
     if args.action == "list":
+        emit("Courses\n")
         for course in courses:
             option = f" ({course.timing_option.replace('_', '-')})" if course.timing_option else ""
-            print(f"{course.block}: {course.course or '(unused)'}{option}" + (" [disabled]" if course.course and not course.enabled else ""))
+            emit(f"  {course.block}: {course.course or '(unused)'}{option}" + (" [disabled]" if course.course and not course.enabled else ""))
         return
     if args.action == "edit":
-        print("Enter a name to include a block. Enter keeps its current value; - clears it. Ctrl+C cancels unsaved changes.")
+        emit("Courses\n\n  Enter keeps · - clears · Ctrl+C cancels\n")
         for block in blocks:
             i, old = by_block[block], courses[by_block[block]]
-            name = input(f"{block} [{old.course or 'unused'}]: ").strip() or old.course
+            name = ask(f"  {block} [{old.course or 'unused'}]: ").strip() or old.course
             name = "" if name == "-" else name
             option = old.timing_option
             choices = ctx.semester.timing_options.get(block, {})
             if name and choices:
                 while True:
-                    text = input(f"{block} timing ({', '.join(key.replace('_', '-') for key in choices)}) [{option.replace('_', '-')}]: ").strip() or option
+                    text = ask(f"  {block} timing ({', '.join(key.replace('_', '-') for key in choices)}) [{option.replace('_', '-')}]: ").strip() or option
                     try:
                         option = timing_choice(text, choices)
                         break
                     except CalendarError as exc:
-                        print(exc)
+                        emit(f"  {exc}")
             courses[i] = replace(old, course=name, enabled=bool(name) if name != old.course else old.enabled, timing_option=option)
     else:
         for block in blocks:
@@ -243,23 +347,45 @@ def course_command(args, ctx):
             else:
                 courses[i] = replace(old, enabled=args.action == "enable")
     ctx.save_courses(courses, expected)
-    print(f"Saved courses: {ctx.courses_path}")
+    emit(f"\nSaved courses:\n  {ctx.courses_path}")
 
 
 def activity_command(args, ctx):
     expected = digest(ctx.activities_path)
     items = ctx.activities()
     if args.action == "list":
+        emit("Activities\n")
         for item in items:
             kind = ctx.semester.activities[item.activity]
             label = "CAS (fixed title)" if kind == "cas" else item.name or "(unnamed club)"
             slots = ", ".join(f"{s.pattern} {s.start:%H:%M}–{s.end:%H:%M}" for s in ctx.semester.activity_sessions if s.block == item.activity)
-            print(f"{item.activity}: {label} · {slots}")
-        print("Export with --cas / --clubs to include these optional activities.")
+            emit(f"  {item.activity}: {label}\n    {slots}\n")
+        emit("  Include with --cas or --clubs · More: --activities --docs")
+        return
+    if args.action == "edit":
+        # Predefined slots supply the clock; this batch edits names only. Keep
+        # the loaded digest and save once so cancellation/conflicts lose no data.
+        by_key = {item.activity: i for i, item in enumerate(items) if ctx.semester.activities[item.activity] == "club"}
+        ids = args.ids or list(by_key)
+        if not ids:
+            raise CalendarError("This semester has no club slots in its activities.csv.")
+        if set(ids) - set(by_key) or len(ids) != len(set(ids)):
+            raise CalendarError("Choose each club slot at most once from: " + ", ".join(by_key))
+        emit("Activities\n\n  Fixed times · Enter keeps · - clears · Ctrl+C cancels\n")
+        for key in ids:
+            index, old = by_key[key], items[by_key[key]]
+            slots = ", ".join(f"{s.pattern} {s.start:%H:%M}–{s.end:%H:%M}" for s in ctx.semester.activity_sessions if s.block == key)
+            emit(f"  {key} · {slots}")
+            text = ask(f"  Club name [{old.name or 'unused'}]: ").strip()
+            emit()
+            name = old.name if not text else "" if text == "-" else text
+            items[index] = replace(old, name=name, enabled=bool(name) if name != old.name else old.enabled)
+        ctx.save_activities(items, expected)
+        emit(f"Saved club names:\n  {ctx.activities_path}\n\n  Include with --clubs · More: --activities --docs")
         return
     matches = [i for i, item in enumerate(items) if item.activity == args.id]
     if not matches or ctx.semester.activities[args.id] != "club":
-        raise CalendarError("Choose a club ID from activities list. CAS always uses its fixed title.")
+        raise CalendarError("Choose a club ID from --inspect --activities. CAS always uses its fixed title.")
     i = matches[0]
     if args.action == "set":
         items[i] = replace(items[i], name=args.name.strip(), enabled=True, location=items[i].location if args.room is None else args.room)
@@ -268,20 +394,21 @@ def activity_command(args, ctx):
     else:
         items[i] = replace(items[i], enabled=args.action == "enable")
     ctx.save_activities(items, expected)
-    print(f"Saved activities: {ctx.activities_path}")
+    emit(f"Saved activities:\n  {ctx.activities_path}")
 
 
 def exception_command(args, ctx):
     if args.action == "list":
+        emit("Exceptions\n")
         from .storage import load_overrides
         for source, items in (("school", load_overrides(ctx.folder / "exceptions.csv", ctx.semester)), ("yours", ctx.exceptions())):
             for item in items:
                 shift = "inherit" if item.time_shift_minutes is None else f"{item.time_shift_minutes:+} min"
                 half = f" · {item.half_day}" if item.half_day else ""
-                print(f"{item.date}: {item.action} {item.pattern} · {shift}{half} · {source} · {item.note}")
-        print("Applied only with --schedule exceptions. Your row replaces a school row on the same date.")
+                emit(f"  {item.date}: {item.action} {item.pattern} · {shift}{half} · {source} · {item.note}")
+        emit("\n  Apply with --schedule exceptions · More: --write --exceptions --docs")
         return
-    day = parse_date(args.date)
+    day = parse_cli_date(args.date)
     expected = digest(ctx.exceptions_path)
     items = [item for item in ctx.exceptions() if item.date != day]
     if args.action == "set":
@@ -294,11 +421,12 @@ def exception_command(args, ctx):
         shift = args.shift if args.follow else 20 if args.late else 0 if args.normal else None
         items.append(DayOverride(day, action, args.follow or "", shift, args.note, half))
     ctx.save_exceptions(items, expected)
-    print(f"Saved exceptions: {ctx.exceptions_path}")
+    emit(f"Saved exceptions:\n  {ctx.exceptions_path}")
 
 
 def semester_command(args, workspace):
     if args.action == "list":
+        emit("Semesters\n")
         ids = workspace.semesters()
         active = workspace.settings()["active_semester"]
         for sid in ids:
@@ -307,35 +435,61 @@ def semester_command(args, workspace):
                 state = "active" if sid == active else "ready"
             except CalendarError as exc:
                 state = f"draft / invalid: {exc}"
-            print(f"{sid} · {state}")
+            emit(f"  {sid} · {state}")
         if not ids:
-            print("No semester definitions. Start with semester new ID --blocks X,Y,Z.")
+            emit("No semester definitions. Start with --write --semesters --new ID --blocks X,Y,Z.")
     elif args.action == "new":
         folder = create_semester(workspace, args.id, blocks=args.blocks, name=args.name, timetable=args.timetable,
                                  copy_from=args.copy_from, weekdays=args.weekdays, utc_offset=args.utc_offset, noon_cutoff=args.noon_cutoff)
         if args.timetable or args.copy_from:
-            print(f"Defined {args.id}. Review with semester show {args.id}, then select with semester use {args.id}.")
+            emit(f"Defined {args.id}. Review with --inspect --semesters --show {args.id}, then select with --write --semesters --use {args.id}.")
         else:
-            print(f"Draft created. Fill {folder / 'timetable.csv'} with pattern,block,start,end rows.\nThen run semester use {args.id}. The draft cannot export yet.")
+            emit(f"Draft created. Fill {folder / 'timetable.csv'} with pattern,block,start,end rows.\nThen run --write --semesters --use {args.id}. The draft cannot export yet.")
     elif args.action == "show":
-        print(describe_semester(safe_child(workspace.root / "semesters", args.id)))
+        emit(describe_semester(safe_child(workspace.root / "semesters", args.id)))
     else:
         ctx = workspace.use_semester(args.id, getattr(args, "profile", None))
-        print(f"Using {ctx.semester.id} · blocks: {', '.join(ctx.semester.blocks)}\nEnter your courses: courses edit (or courses set BLOCK NAME).")
+        emit(f"Using {ctx.semester.id} · blocks: {', '.join(ctx.semester.blocks)}\n\n  Next: --write --courses · More: --inspect --semesters --docs")
 
 
-def main(argv=None):
+def main(argv=None, *, prepared=None):
     # Windows redirected streams may otherwise use a legacy code page, losing
     # Unicode course names even though the CSV and calendar are valid UTF-8.
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8")
+    # Redirected name-entry input follows the same UTF-8 contract as output.
+    # Configure only before a workflow starts, never between reads in its stages.
+    if prepared is None and hasattr(sys.stdin, "reconfigure") and not sys.stdin.isatty() and sys.stdin.encoding.lower().replace("-", "") != "utf8":
+        sys.stdin.reconfigure(encoding="utf-8")
     cli = parser()
-    args = cli.parse_args(arguments(list(sys.argv[1:] if argv is None else argv)))
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if prepared is None:
+        from .cli_workflow import starts_workflow, run_workflow
+        if starts_workflow(argv):
+            return run_workflow(argv, cli)
+    try:
+        args = prepared if prepared is not None else cli.parse_args(arguments(argv, cli))
+    except ValueError as exc:
+        error_message(exc)
+        return 2
     workspace = Workspace(getattr(args, "root", DEFAULT_ROOT))
     try:
         if args.command is None:
             cli.print_help()
+            return 0
+        if args.command == "help":
+            if args.topics:
+                help_parser(cli, args.topics).print_help()
+            else:
+                write_help(render_help(cli, detailed=True), sys.stdout)
+            return 0
+        if args.command == "activities" and args.action is None:
+            args.action, args.ids = "edit", []
+        if args.command == "courses" and args.action is None and any(token in {"--courses", "-c"} for token in (argv if argv is not None else sys.argv[1:])):
+            args.action, args.blocks = "edit", []
+        if args.command in {"semester", "courses", "activities", "exceptions"} and args.action is None:
+            help_parser(cli, [args.command]).print_help()
             return 0
         if args.command == "semester":
             semester_command(args, workspace)
@@ -344,13 +498,17 @@ def main(argv=None):
             from .gui import launch
             launch(workspace.root, semester_id=getattr(args, "semester", None), profile=getattr(args, "profile", None))
             return 0
+        # Report bad date syntax before opening/creating any student files.
+        export_settings = command_settings(args) if args.command in {"export", "preview", "validate"} else None
+        if args.command == "exceptions" and args.action != "list":
+            args.date = parse_cli_date(args.date).isoformat()
         settings = workspace.settings()
         sid = workspace.selected_semester(getattr(args, "semester", None))
         profile = getattr(args, "profile", None) or settings["profile"]
         create = args.command == "init" or (args.command in {"courses", "exceptions", "activities"} and args.action not in {"list", "path"})
         ctx = workspace.context(profile, sid, create=create)
         if args.command == "init":
-            print(f"Course CSV: {ctx.courses_path}")
+            emit(f"Course CSV: {ctx.courses_path}")
         elif args.command == "courses":
             course_command(args, ctx)
         elif args.command == "exceptions":
@@ -358,21 +516,26 @@ def main(argv=None):
         elif args.command == "activities":
             activity_command(args, ctx)
         else:
-            preview = ctx.preview(command_settings(args))
+            preview = ctx.preview(export_settings)
             if args.command == "preview":
                 width = args.width if args.width is not None else max(20, min(300, shutil.get_terminal_size((120, 24)).columns))
-                print(preview_text(preview, width=width if args.layout == "columns" else None))
+                emit(preview_text(preview, width=width if args.layout == "columns" else None))
             elif args.command == "validate":
-                print(f"Valid: {len(preview.events)} events, {preview.start} to {preview.end}, {preview.clock}")
+                emit(f"Valid: {len(preview.events)} events, {preview.start} to {preview.end}, {preview.clock}")
             else:
                 if not preview.events:
-                    raise CalendarError("No classes in this range. Use courses list and preview --dayrange FIRST:LAST to check selections and dates.")
+                    raise CalendarError("No events in this range.\nUse --inspect --courses and --inspect --day FIRST:LAST to check selections and dates. For clubs, inspect --activities and include --clubs in the export.")
                 output = ctx.export(preview, args.output, overwrite=args.overwrite)
-                print(f"Exported {len(preview.events)} events · {preview.start} to {preview.end} · {preview.clock}\n{output}")
+                emit(f"Exported {len(preview.events)} events · {preview.start} to {preview.end} · {preview.clock}\n{output}")
         return 0
     except (CalendarError, OSError, ImportError, ValueError) as exc:
-        print(f"Error: {exc}", file=sys.stderr)
+        path = [args.command] + ([args.action] if getattr(args, "action", None) else [])
+        if isinstance(exc, DestinationExistsError) and args.command == "export":
+            # Preserve the original command's dates, rules and destination; only
+            # explain the extra flag rather than reconstructing shell quoting.
+            exc = f'{exc}\nTo replace it, rerun the export action with --overwrite added.\nTo keep it, add --output "exports/another-name.ics" with an unused name.'
+        error_message(exc, public_path(path) + " --docs")
         return 2
     except (EOFError, KeyboardInterrupt):
-        print("\nCancelled. Unsaved course inputs were discarded.")
+        emit("\nCancelled. Unsaved name inputs were discarded.")
         return 130

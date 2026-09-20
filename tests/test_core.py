@@ -118,6 +118,15 @@ class CoreTests(unittest.TestCase):
             with self.assertRaises(CalendarError):
                 date_range(*args)
 
+    def test_single_day_boundaries_and_invalid_input(self):
+        # The day mode must neither round to Monday nor use a stale saved end.
+        for day in (date(2026, 9, 17), date(2026, 9, 19), date(2028, 2, 29), date.min, date.max):
+            with self.subTest(day=day):
+                self.assertEqual(date_range("day", day.isoformat(), end="stale"), (day, day))
+        for text in ("", "2026-02-29", "2026-9-17", "2026-09-17:2026-09-18"):
+            with self.subTest(text=text), self.assertRaises(CalendarError):
+                date_range("day", text)
+
     def test_uids_stable_across_ranges_titles_and_t_duration(self):
         base = self.preview()
         renamed = [replace(c, course="New title", timing_option="toefl" if c.block == "T" else "") for c in self.courses]
@@ -209,6 +218,18 @@ class StorageTests(unittest.TestCase):
             atomic_write(output, b"second", overwrite=False)
         self.assertEqual(output.read_bytes(), b"first")
         self.assertEqual(self.ctx.identity, self.workspace.context("student", "2026-27-s1", create=True).identity)
+
+    def test_destination_conflict_during_staging_keeps_file_and_cleans_temp(self):
+        from shbs_calendar.models import DestinationExistsError
+        output = self.root / "raced.ics"
+        def concurrent_create(source, destination):
+            destination.write_bytes(b"another writer")
+            raise FileExistsError("destination was created during staging")
+        with patch("shbs_calendar.storage.os.link", side_effect=concurrent_create):
+            with self.assertRaises(DestinationExistsError):
+                atomic_write(output, b"our export", overwrite=False)
+        self.assertEqual(output.read_bytes(), b"another writer")
+        self.assertEqual(list(self.root.glob(".shbs-*")), [])
 
     def test_invalid_semester_configuration(self):
         folder = self.root / "semesters/2026-27-s1"

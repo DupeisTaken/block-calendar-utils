@@ -49,7 +49,7 @@ class ActivityTests(unittest.TestCase):
         self.assertEqual(result.events[-1].start.strftime("%a %H:%M"), "Fri 15:45")
 
     def test_activity_validation_conflicts_and_copy(self):
-        with self.assertRaisesRegex(CalendarError, "Name a club"):
+        with self.assertRaisesRegex(CalendarError, "--activities --set"):
             self.ctx.preview(self.settings | dict(clubs=True))
         for item in [Activity("cas", "Wrong", True), Activity("club-tue", "", True), Activity("unknown", "Name", True)]:
             with self.assertRaises(CalendarError):

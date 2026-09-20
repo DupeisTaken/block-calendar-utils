@@ -1,7 +1,7 @@
 # SHBS calendar export plan
 
 Date: 2026-09-13
-Status: Implemented, then reworked on 2026-09-13 following user feedback. The numbered terminal menu is superseded by argument-driven actions and `--dayrange` exports. Semester definitions and explicit selection precede course entry; only `courses edit` prompts for input. Normal weekdays ignores saved exceptions for that export without deleting them. See `README.md`, `docs/architecture.md` and `docs/verification.md` for current behavior and validation. The sections below preserve the original plan as historical context; guided-menu descriptions no longer describe the application. Native macOS and calendar-client imports remain unverified, with further Outlook investigation deferred at the user's request.
+Status: **Historical implementation plan, not the current command reference.** The application has since adopted dash-based actions, explicit semester selection, name-entry prompts and single-day/range exports. Use the [README](README.md) to get started, [command guide](docs/commands.md) for current syntax, [architecture](docs/architecture.md) for boundaries, and [verification record](docs/verification.md) for completed checks and limitations. The dated sections below preserve the original scope, proposals and planning-stage observations; their future-tense tasks and menu descriptions are historical. Native macOS and calendar-client imports remain unverified, with further Outlook investigation deferred at the user's request.
 
 ## Starting point and scope
 

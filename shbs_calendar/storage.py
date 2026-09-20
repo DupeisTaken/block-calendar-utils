@@ -11,7 +11,7 @@ from dataclasses import asdict
 from datetime import date, time, timedelta, timezone
 from pathlib import Path
 
-from .models import CalendarError, Course, DayOverride, Semester, Session
+from .models import CalendarError, DestinationExistsError, Course, DayOverride, Semester, Session
 
 COURSE_FIELDS = ("block", "course", "location", "teacher", "enabled", "timing_option")
 EXCEPTION_FIELDS = ("date", "action", "pattern", "time_shift_minutes", "note", "half_day")
@@ -70,7 +70,7 @@ def atomic_write(path: Path, data: bytes, *, overwrite: bool = True, backup: boo
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     if not overwrite and path.exists():
-        raise CalendarError(f"{path} already exists. Choose another name or allow overwrite.")
+        raise DestinationExistsError(path)
     tmp = None
     try:
         with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".shbs-", delete=False) as stream:
@@ -84,6 +84,8 @@ def atomic_write(path: Path, data: bytes, *, overwrite: bool = True, backup: boo
             os.replace(tmp, path)
         else:
             os.link(tmp, path)
+    except FileExistsError as exc:
+        raise DestinationExistsError(path) from exc
     except OSError as exc:
         raise CalendarError(f"Could not save {path}: {exc}") from exc
     finally:

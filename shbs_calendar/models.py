@@ -8,6 +8,13 @@ class CalendarError(ValueError):
     """An actionable configuration/input error safe to display to a student."""
 
 
+class DestinationExistsError(CalendarError):
+    """Let each interface explain replacement without coupling storage to CLI flags."""
+
+    def __init__(self, path):
+        super().__init__(f"{path} already exists.")
+
+
 @dataclass(frozen=True)
 class Course:
     block: str
