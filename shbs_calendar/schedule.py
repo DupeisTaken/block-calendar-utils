@@ -5,6 +5,7 @@ from uuid import UUID, uuid5
 
 from .models import Activity, CalendarError, Course, DayOverride, Event, Preview, Semester
 from .storage import parse_date, parse_time, validate_courses, validate_overrides
+from .exception_times import blank_windows, remaining_intervals, window_description
 
 
 def date_range(mode: str, anchor: str = "", weeks: int = 1, end: str = "", *, today: date | None = None) -> tuple[date, date]:
@@ -63,6 +64,7 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
         pattern = semester.weekdays.get(day.weekday())
         effective_shift = shift
         override = overrides.get(day)
+        windows = blank_windows(override) if override else []
         if override:
             detail = f"{day}: {override.action}"
             if day in replaced:
@@ -76,6 +78,8 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
                 detail += f" — {override.note}"
             if override.half_day:
                 detail += f"; {override.half_day} (cutoff {semester.noon_cutoff:%H:%M})"
+            if description := window_description(override):
+                detail += "; " + description
             notes.append(detail)
             if override.action == "off":
                 continue
@@ -102,15 +106,23 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
                 raise CalendarError(f"{day}/{session.session_id}: shift crosses midnight or interval is invalid.")
             # Classify whole sessions by their effective local start time. A
             # lesson crossing the cutoff is never shortened into half a lesson.
-            if override and ((override.half_day == "no-morning" and start.time() < semester.noon_cutoff)
-                             or (override.half_day == "no-afternoon" and start.time() >= semester.noon_cutoff)):
+            if override and ((override.half_day == "no-morning" and not override.morning_cutoff and start.time() < semester.noon_cutoff)
+                             or (override.half_day == "no-afternoon" and not override.afternoon_cutoff and start.time() >= semester.noon_cutoff)):
                 continue
             # Length-prefixed JSON-like components avoid ambiguous name joins.
             key = f"{len(semester.id)}:{semester.id}:{day}:{session.session_id}"
             uid = str(uuid5(namespace, key)) + "@shbs-calendar.local"
             # Calendar entries contain the selected name, times and location.
             # Keep scheduling explanations in the preview, not event notes.
-            day_events.append(Event(uid, course.block, course.course, start, end, course.location))
+            # Keep the original UID for the first surviving piece. Extra pieces
+            # use their start boundary, so unrelated blank windows cannot renumber them.
+            pieces = remaining_intervals(start.hour * 60 + start.minute, end.hour * 60 + end.minute,
+                                         windows, override.overlap if override else "trim")
+            midnight = start.replace(hour=0, minute=0)
+            for index, (left, right) in enumerate(pieces):
+                piece_uid = uid if index == 0 else str(uuid5(namespace, key + f":part:{left}")) + "@shbs-calendar.local"
+                day_events.append(Event(piece_uid, course.block, course.course,
+                                        midnight + timedelta(minutes=left), midnight + timedelta(minutes=right), course.location))
         day_events.sort(key=lambda e: (e.start, e.uid))
         for before, after in zip(day_events, day_events[1:]):
             if before.end > after.start:

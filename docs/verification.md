@@ -1,5 +1,44 @@
 # Verification record
 
+## Exception demonstration block — 2026-09-21
+
+Added an exception-type comparison under Write in the command catalogue: 11 types with saved options, inline equivalents and their effects, plus complete closure, makeup-day/cutoff and one-off gap examples. Validated all 11 table examples with the real parser/override validator; the 10 available saved/inline pairs produce identical rules. **136 tests passed** with native GUI checks enabled, including documentation command/link checks. `git diff --check` passed. Only documentation changed; no personal files were touched.
+
+## Catalogue organized by mode — 2026-09-21
+
+Reorganized the command catalogue around Inspect, Write and Export, with a mode comparison table and all course/club/exception/semester operations nested under Write. Shared syntax, context, date selectors and event options follow the three modes and are linked from the relevant sections. Existing heading anchors were retained. The README now has a table linking all seven guides with their purposes.
+
+**136 tests passed** with `SHBS_GUI_TESTS=1`, including command-example parsing, public-option coverage, and link/anchor/fence checks. A separate structural check confirmed that every guide in `docs/` appears in the README table and every write-operation section belongs under Write. `git diff --check` passed. This change affects documentation only; no personal files or application behavior changed.
+
+## Exceptions help exposes time filters — 2026-09-21
+
+The main Exceptions help now shows `--blank-hours`, `--morning-cutoff`, `--afternoon-cutoff` and `--overlap`, with the saved-rule application step. Both inspect and write help routes expose these existing controls; write navigation also names the time-filter capability.
+
+**136 tests passed** with native GUI checks enabled. The new test covers the Exceptions entry, compact/detailed help, redirected output, and help before setup without prompts or writes. Existing tests verify saved date ranges with blank hours and both cutoffs. Reviewed `local/qa/help-exceptions.png`, captured with `tools/verify_preview.py --help-page exceptions` using one temporary QA window, which closed automatically. `git diff --check` passed; no personal files were changed.
+
+## Documentation follow-up — 2026-09-21
+
+Updated the README, setup and workflow guides, command catalogue, GUI guide, CSV reference and architecture notes for exception ranges, blank windows, overlap choices and activity defaults. Moved the GUI time-filter instructions into Exceptions, corrected stale profile-switch defaults, and added examples for saved-range preview/removal, negative activity flags and complete exception CSV rows.
+
+**135 tests passed** with `SHBS_GUI_TESTS=1` using `.venv-verify/Scripts/python.exe -m unittest discover`. This includes documentation checks for executable command syntax, public-option coverage, Markdown links, anchors and fences. Separately loaded all **7 documented exception CSV rows** through the actual storage validator in a temporary directory. `git diff --check` passed. This follow-up changes documentation only; no personal data was edited and no additional QA windows were opened.
+
+## Blanked dates/hours and activity defaults — 2026-09-21
+
+**135 tests passed** with native Tk tests and the independent calendar parser enabled. Added coverage for inclusive exception ranges, trim/split/remove overlap policies, touching and merged windows, custom morning/afternoon cutoffs after shifts, UTC export boundaries, Unicode and stable split-event UIDs, old/new CSV round trips, stale saves, GUI field preservation and range removal, activity defaults/negative flags, workflow flag conflicts, help without writes and malformed saved rules before earlier workflow writes.
+
+```powershell
+$env:PYTHONDONTWRITEBYTECODE = '1'
+$env:SHBS_GUI_TESTS = '1'
+.\.venv-verify\Scripts\python.exe -m unittest discover
+.\.venv-verify\Scripts\python.exe tools/verify_gui.py
+.\.venv-verify\Scripts\python.exe tools/verify_gui.py --scale 2.0
+.\.venv-verify\Scripts\python.exe tools/verify_preview.py --help-page export
+```
+
+Reviewed synthetic exception-editor screenshots at both text scales and the export help screenshot under `local/qa/`. Enlarged text initially clipped the first exception row; a compact heading restored room, and wider date/action columns kept values readable. Screenshot assertions check row and action visibility; callback failures now fail the helper process. All QA windows were sequential and closed automatically. After the final table-label/width polish, native GUI and documentation tests were rerun.
+
+Created the missing `.venv-verify` locally with the optional requirements from `requirements-dev.txt`; no global packages or personal profile files were changed. Native macOS and calendar-client reimports remain unverified.
+
 ## Linked setup, command catalogue and GUI guide — 2026-09-19
 
 **128 tests passed**, including native Tk tests and the independent calendar parser. This documentation pass shortened the README to a starting page and added `docs/setup.md`, `docs/command-catalogue.md` and `docs/gui.md`. Existing workflow/configuration guides and working agreements link to the new references; application behavior was not changed in this pass.

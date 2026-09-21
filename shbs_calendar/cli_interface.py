@@ -24,6 +24,7 @@ EXPORT_OPTIONS = {
     "--exclude": None, "--cas": "-c", "--clubs": None, "--late": "-l",
     "--normal": None, "--output": "-o", "--overwrite": None,
     "--width": None, "--layout": None,
+    "--noclub": None, "--nocas": None,
 }
 GROUP_ACTIONS = {
     "semester": {"list": "-l", "show": "-s", "use": "-u", "new": "-n"},
@@ -35,7 +36,7 @@ DETAIL_OPTIONS = {
     ("semester", "new"): {"--blocks": "-b", "--copy": "-c", "--name": "-n", "--timetable": "-t", "--weekdays": "-w", "--utc-offset": "-u", "--noon-cutoff": None},
     ("courses", "set"): {"--room": None, "--teacher": "-t", "--timing": None},
     ("activities", "set"): {"--room": None},
-    ("exceptions", "set"): {"--off": "-o", "--follow": "-f", "--late": "-l", "--normal": "-n", "--no-morning": None, "--no-afternoon": None, "--shift": "-s", "--half-day": None, "--note": None},
+    ("exceptions", "set"): {"--off": "-o", "--follow": "-f", "--late": "-l", "--normal": "-n", "--no-morning": None, "--no-afternoon": None, "--shift": "-s", "--half-day": None, "--note": None, "--blank-hours": "-b", "--morning-cutoff": "-m", "--afternoon-cutoff": "-a", "--overlap": None},
 }
 
 
@@ -206,11 +207,11 @@ def render_help(parser, detailed=False):
         names = {name: short for name, short in GROUP_ACTIONS.get(path[0], {}).items() if name in ALLOWED[mode].get(path[0], {})}
         lines += rows([(" ".join(["--" + name] + positional_labels(subcommands[name])), descriptions[name]) for name in names])
         if path[0] == "activities":
-            lines += ["  Run --write --activities to enter club names at the predefined times.", '  One club: --write --activities --set club-tue "Chess Club"', "  Include saved names with --clubs when exporting.", ""]
+            lines += ["  Run --write --activities to enter club names at the predefined times.", '  One club: --write --activities --set club-tue "Chess Club"', "  Named enabled clubs are included by default; exclude with --noclub.", ""]
         elif path[0] == "courses":
             lines += ["  Run --write --courses to enter names for your selected timetable.", '  One course: --write --courses --set A "Mathematics"', ""]
     else:
-        essentials = {"--day", "--week", "--next-week", "--exception", "--clubs", "--cas", "--late", "--output", "--overwrite"}
+        essentials = {"--day", "--week", "--next-week", "--exception", "--noclub", "--cas", "--nocas", "--late", "--output", "--overwrite"}
         items = []
         for action in parser._actions:
             if action.dest in {"help", "docs"}:
@@ -225,9 +226,20 @@ def render_help(parser, detailed=False):
                 label += " / " + short
             description = action.help if action.help and action.help != argparse.SUPPRESS else ""
             if not detailed:
-                description = {"--day": "A day or inclusive range", "--week": "The week containing this date", "--next-week": "Next Monday–Sunday", "--exception": "Change a weekday, timing or half-day rule", "--cas": "Include CAS", "--clubs": "Include your named clubs", "--late": "Shift times by +20 minutes", "--output": "Destination .ics path; default: ROOT/exports/"}.get(long, description)
+                description = {"--day": "A day or inclusive range", "--week": "The week containing this date", "--next-week": "Next Monday–Sunday", "--exception": "Blank dates/hours or change weekday/timing", "--cas": "Include CAS", "--clubs": "Include your named clubs", "--late": "Shift times by +20 minutes", "--output": "Destination .ics path; default: ROOT/exports/"}.get(long, description)
             items.append((label, description))
         lines += rows(items)
+    if path[0] == "exceptions" and (subcommands or path[-1] == "list"):
+        # Surface time filters at the Exceptions entry, where users choose
+        # what to change, while leaving their grammar on the set operation.
+        lines += ["  Time filters with --write --exceptions --set DATE[:DATE]", ""]
+        lines += rows([
+            ("--blank-hours HH:MM-HH:MM", "Blank hours; repeat for more windows"),
+            ("--morning-cutoff HH:MM", "Blank times before this boundary"),
+            ("--afternoon-cutoff HH:MM", "Blank times from this boundary onward"),
+            ("--overlap trim|remove", "Trim/split (default), or remove overlapping sessions"),
+        ])
+        lines += ["  Apply saved rules with --schedule exceptions on preview/export.", ""]
     if path[0] in {"export", "preview", "validate"}:
         lines += ["  Supply dates: --day DATE[:DATE], --week DATE, --this-week,", "  --next-week, or both --first-date DATE and --last-date DATE.", ""]
     if detailed:
@@ -245,7 +257,7 @@ def render_help(parser, detailed=False):
         if path[0] == "exceptions":
             lines += ["  Saved rules apply only with --schedule exceptions on preview/export.", "  --set replaces your entire rule for that date; it does not merge fields.", ""]
         if path[0] in {"export", "preview", "validate"}:
-            lines += ["  Normal times and weekdays are the CLI defaults. --clubs and --cas opt in.", "  Saved rules require --schedule exceptions. Inline --exception rules replace", "  the saved row for their date; they never save to a file.", ""]
+            lines += ["  Normal times/weekdays and named clubs are defaults; CAS is off.", "  --noclub excludes clubs; --cas includes CAS; --nocas excludes CAS.", "  Saved rules require --schedule exceptions. Inline --exception rules replace", "  the saved row for their date; they never save to a file.", ""]
         if path[0] == "export":
             lines += ["  Replace an existing export by adding --overwrite to that export action:", "    python -m shbs-calendar --export --day 0920-0924 --overwrite", "  To keep the old file, choose an unused --output path ending in .ics.", "  --overwrite takes no value, does not prompt, and applies only to this export.", "  After a stacked write succeeds, retry only the failed export action.", ""]
         if subcommands:

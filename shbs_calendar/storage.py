@@ -14,7 +14,7 @@ from pathlib import Path
 from .models import CalendarError, DestinationExistsError, Course, DayOverride, Semester, Session
 
 COURSE_FIELDS = ("block", "course", "location", "teacher", "enabled", "timing_option")
-EXCEPTION_FIELDS = ("date", "action", "pattern", "time_shift_minutes", "note", "half_day")
+EXCEPTION_FIELDS = ("date", "action", "pattern", "time_shift_minutes", "note", "half_day", "blank_hours", "morning_cutoff", "afternoon_cutoff", "overlap")
 SESSION_FIELDS = ("pattern", "session_id", "block", "start", "end")
 
 
@@ -234,10 +234,13 @@ def validate_overrides(overrides: list[DayOverride], semester: Semester) -> None
             raise CalendarError(f"exceptions.csv:{row}: action must be off, use, adjust, or partial.")
         if item.half_day not in {"", "no-morning", "no-afternoon"}:
             raise CalendarError(f"exceptions.csv:{row}: half_day must be blank, no-morning, or no-afternoon.")
-        if item.action == "off" and item.half_day:
-            raise CalendarError(f"exceptions.csv:{row}: off cannot have a half-day filter.")
-        if item.action == "partial" and not item.half_day:
-            raise CalendarError(f"exceptions.csv:{row}: partial requires a half_day filter.")
+        from .exception_times import blank_windows
+        blank_windows(item)
+        has_windows = bool(item.blank_hours or item.morning_cutoff or item.afternoon_cutoff)
+        if item.action == "off" and (item.half_day or has_windows):
+            raise CalendarError(f"exceptions.csv:{row}: off cannot have a half-day or time filter.")
+        if item.action == "partial" and not (item.half_day or has_windows):
+            raise CalendarError(f"exceptions.csv:{row}: partial requires a half_day filter, blank hours or cutoff.")
         if item.action == "use" and item.pattern not in semester.patterns:
             raise CalendarError(f"exceptions.csv:{row}: unknown pattern {item.pattern!r}.")
         if item.action != "use" and item.pattern:
@@ -257,7 +260,8 @@ def load_overrides(path: Path, semester: Semester) -> list[DayOverride]:
     for line, row in read_rows(path, EXCEPTION_FIELDS, ("date", "action")):
         try:
             shift = row.get("time_shift_minutes", "")
-            items.append(DayOverride(parse_date(row["date"]), row["action"], row.get("pattern", ""), int(shift) if shift else None, row.get("note", ""), row.get("half_day", "")))
+            items.append(DayOverride(parse_date(row["date"]), row["action"], row.get("pattern", ""), int(shift) if shift else None, row.get("note", ""), row.get("half_day", ""),
+                                     row.get("blank_hours", ""), row.get("morning_cutoff", ""), row.get("afternoon_cutoff", ""), row.get("overlap") or "trim"))
         except ValueError as exc:
             raise CalendarError(f"{path}:{line}: {exc}") from exc
     validate_overrides(items, semester)

@@ -47,7 +47,8 @@ def capture(syntax=False, entry=False, help_page=None, workflow=False):
                 # below with Tk tags. No native console or user data is changed.
                 with patch.object(output, "isatty", return_value=True), patch.dict(os.environ, {}, clear=True), patch("shbs_calendar.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
                     try:
-                        main((["--" + help_page] if help_page != "overview" else []) + ["-h"])
+                        route = ["--write", "--exceptions"] if help_page == "exceptions" else ["--" + help_page] if help_page != "overview" else []
+                        main(route + ["-h"])
                     except SystemExit as exc:
                         assert exc.code == 0
             elif entry:
@@ -108,6 +109,6 @@ if __name__ == "__main__":
     mode.add_argument("--syntax", action="store_true", help="Capture short commands, flexible dates and a syntax error")
     mode.add_argument("--entry", action="store_true", help="Capture compact help and interactive club-name entry")
     mode.add_argument("--workflow", action="store_true", help="Capture stacked write/export and overwrite recovery")
-    mode.add_argument("--help-page", choices=["overview", "activities", "export"], help="Capture subtly colored help")
+    mode.add_argument("--help-page", choices=["overview", "activities", "export", "exceptions"], help="Capture subtly colored help")
     args = parser.parse_args()
     capture(args.syntax, args.entry, args.help_page, args.workflow)

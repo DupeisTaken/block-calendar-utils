@@ -44,6 +44,28 @@ class GUITests(unittest.TestCase):
     def fields(self, block):
         return dict(self.app.course_vars)[block]
 
+    def test_time_window_range_roundtrip_preserves_fields(self):
+        self.app.exc_date.set("2026-09-14")
+        self.app.exc_end.set("2026-09-16")
+        self.app.exc_action.set("partial")
+        self.app.exc_blank.set("10:00-11:00")
+        self.app.exc_morning.set("09:00")
+        self.app.exc_afternoon.set("16:00")
+        self.app.exc_overlap.set("remove")
+        self.app.save_exception()
+        self.assertEqual(len(self.app.ctx.exceptions()), 3)
+        row = self.app.exception_tree.get_children()[0]
+        self.app.exception_tree.selection_set(row)
+        self.app.select_exception()
+        self.assertEqual(self.app.exc_blank.get(), "10:00-11:00")
+        self.assertEqual(self.app.exc_overlap.get(), "remove")
+        self.app.exc_note.set("Preserve windows")
+        self.app.save_exception()
+        self.assertEqual(self.app.ctx.exceptions()[0].afternoon_cutoff, "16:00")
+        self.app.exc_end.set("2026-09-16")
+        self.app.remove_exception()
+        self.assertEqual(self.app.ctx.exceptions(), [])
+
     def test_gui_half_day_roundtrip_preserves_filter_when_editing_note(self):
         self.fields("A")["course"].set("Math")
         self.fields("F")["course"].set("Music")
@@ -64,7 +86,7 @@ class GUITests(unittest.TestCase):
 
     def test_activity_form_saves_named_clubs_and_opt_in_preview(self):
         self.assertFalse(self.app.cas_var.get())
-        self.assertFalse(self.app.clubs_var.get())
+        self.assertTrue(self.app.clubs_var.get())
         self.app.activity_vars["club-tue"][0].set("Chess")
         self.app.activity_vars["club-wed"][0].set("Robotics")
         self.app.cas_var.set(True)
@@ -77,7 +99,7 @@ class GUITests(unittest.TestCase):
         self.app.switch()
         self.assertFalse(self.app.cas_var.get())
         self.assertFalse(self.workspace.settings()["cas"])
-        self.assertFalse(self.workspace.settings()["clubs"])
+        self.assertTrue(self.workspace.settings()["clubs"])
 
     def test_setup_requires_review_and_activation(self):
         from shbs_calendar.gui import SemesterSetup

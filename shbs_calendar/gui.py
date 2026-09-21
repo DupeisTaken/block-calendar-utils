@@ -104,7 +104,7 @@ class CalendarApp:
         ttk.Label(self.activities_tab, text="Optional CAS and clubs", style="Section.TLabel").pack(anchor="w")
         ttk.Label(self.activities_tab, text="CAS uses its fixed title. Name the clubs you attend, then choose what to include in this export.", style="Muted.TLabel", wraplength=900).pack(anchor="w", pady=(8, 14))
         self.cas_var = tk.BooleanVar(value=self.settings.get("cas", False))
-        self.clubs_var = tk.BooleanVar(value=self.settings.get("clubs", False))
+        self.clubs_var = tk.BooleanVar(value=self.settings.get("clubs", True))
         ttk.Checkbutton(self.activities_tab, text="Include CAS", variable=self.cas_var).pack(anchor="w")
         ttk.Checkbutton(self.activities_tab, text="Include enabled, named clubs", variable=self.clubs_var).pack(anchor="w", pady=(4, 16))
         holder = ttk.Frame(self.activities_tab)
@@ -226,14 +226,13 @@ class CalendarApp:
         self.set_preview_text("Choose Single day, a date range or a week above, then refresh the preview.\n\nOnly enabled courses and study periods are included.")
 
     def _exceptions_layout(self):
-        ttk.Label(self.exceptions_tab, text="When a school day is different", style="Section.TLabel").pack(anchor="w")
-        ttk.Label(self.exceptions_tab, text="Use another weekday, skip a date, or change its timing. Your saved date replaces a school exception.", style="Muted.TLabel", wraplength=970).pack(anchor="w", pady=(5, 12))
+        ttk.Label(self.exceptions_tab, text="Exceptions · dates, weekday patterns and time filters", style="Section.TLabel").pack(anchor="w", pady=(0, 10))
         columns = ("date", "action", "pattern", "shift", "skip", "note", "source")
         self.exception_holder = ttk.Frame(self.exceptions_tab)
         self.exception_holder.pack(fill="both", expand=True)
         self.exception_tree = ttk.Treeview(self.exception_holder, columns=columns, show="headings", height=4)
-        for column, width in zip(columns, [110, 70, 110, 80, 100, 230, 80]):
-            self.exception_tree.heading(column, text=column.title())
+        for column, width in zip(columns, [130, 90, 110, 90, 100, 230, 90]):
+            self.exception_tree.heading(column, text="Details" if column == "note" else column.title())
             self.exception_tree.column(column, width=width, minwidth=55, stretch=column == "note")
         scroll = ttk.Scrollbar(self.exception_holder, command=self.exception_tree.yview)
         self.exception_tree.configure(yscrollcommand=scroll.set)
@@ -242,12 +241,19 @@ class CalendarApp:
         self.exception_tree.bind("<<TreeviewSelect>>", lambda _: self.select_exception())
         form = ttk.Frame(self.exceptions_tab)
         form.pack(fill="x", pady=(16, 8))
+        for column in range(5):
+            form.columnconfigure(column, weight=1)
         self.exc_date = tk.StringVar()
         self.exc_action = tk.StringVar(value="use")
         self.exc_pattern = tk.StringVar(value=self.ctx.semester.patterns[0])
         self.exc_shift = tk.StringVar(value="Inherit")
         self.exc_half = tk.StringVar(value="All sessions")
         self.exc_note = tk.StringVar()
+        self.exc_end = tk.StringVar()
+        self.exc_blank = tk.StringVar()
+        self.exc_morning = tk.StringVar()
+        self.exc_afternoon = tk.StringVar()
+        self.exc_overlap = tk.StringVar(value="trim")
         for col, label in enumerate(["Date · YYYY-MM-DD", "Action", "Follow pattern", "Timing", "Session filter"]):
             ttk.Label(form, text=label, style="Muted.TLabel").grid(row=0, column=col, sticky="w", padx=(0, 12), pady=(0, 5))
         ttk.Entry(form, textvariable=self.exc_date, width=15).grid(row=1, column=0, sticky="ew", padx=(0, 12))
@@ -260,6 +266,14 @@ class CalendarApp:
         self.exc_shift_box.grid(row=1, column=3, padx=(0, 12))
         self.exc_half_box = ttk.Combobox(form, textvariable=self.exc_half, values=["All sessions", "No morning", "No afternoon"], state="readonly", width=14)
         self.exc_half_box.grid(row=1, column=4, sticky="w")
+        # A second compact row keeps date ranges and blank windows together.
+        for col, (label, variable) in enumerate([
+                ("Through date · optional", self.exc_end), ("Blank hours", self.exc_blank),
+                ("Morning cutoff", self.exc_morning), ("Afternoon cutoff", self.exc_afternoon)]):
+            ttk.Label(form, text=label, style="Muted.TLabel").grid(row=2, column=col, sticky="w", pady=(10, 5))
+            ttk.Entry(form, textvariable=variable, width=15).grid(row=3, column=col, sticky="ew", padx=(0, 12))
+        ttk.Label(form, text="Overlapping sessions", style="Muted.TLabel").grid(row=2, column=4, sticky="w", pady=(10, 5))
+        ttk.Combobox(form, textvariable=self.exc_overlap, values=["trim", "remove"], state="readonly", width=14).grid(row=3, column=4, sticky="w")
         self.cutoff_label = hint = ttk.Label(self.exceptions_tab, text=self.exception_hint(), style="Muted.TLabel", wraplength=970)
         hint.pack(anchor="w", pady=(2, 10))
         row = ttk.Frame(self.exceptions_tab)
@@ -379,12 +393,12 @@ class CalendarApp:
             candidate = self.workspace.context(self.profile_var.get(), self.semester_var.get(), create=True)
             candidate.courses()
             self.ctx = candidate
-            self.settings.update(profile=self.ctx.profile, semester=self.ctx.semester.id, active_semester=self.ctx.semester.id, cas=False, clubs=False)
+            self.settings.update(profile=self.ctx.profile, semester=self.ctx.semester.id, active_semester=self.ctx.semester.id, cas=False, clubs=True)
             self.workspace.save_settings(self.settings)
             self.load_courses()
             self.load_activities()
             self.cas_var.set(False)
-            self.clubs_var.set(False)
+            self.clubs_var.set(True)
             self.refresh_exceptions()
             self.exc_pattern_box.configure(values=self.ctx.semester.patterns)
             self.exc_pattern.set(self.ctx.semester.patterns[0])
@@ -469,7 +483,7 @@ class CalendarApp:
         self.status.set(f"Exported {len(preview.events)} events · {Path(output).name}")
 
     def exception_hint(self):
-        return f"off: no classes   use: another day   adjust: timing   partial: half day   cutoff {self.ctx.semester.noon_cutoff:%H:%M}"
+        return f"partial: filter times · Blank hours: 10:00-11:00 (comma-separated) · Cutoffs: HH:MM · Session filter default: {self.ctx.semester.noon_cutoff:%H:%M}"
 
     def update_exception_fields(self):
         kind = self.exc_action.get()
@@ -483,23 +497,33 @@ class CalendarApp:
         from .storage import load_overrides
         self.exception_digest = digest(self.ctx.exceptions_path)
         self.exception_items = self.ctx.exceptions()
+        self.exception_rows = {}
         school = load_overrides(self.ctx.folder / "exceptions.csv", self.ctx.semester)
         for item in self.exception_tree.get_children():
             self.exception_tree.delete(item)
         for source, items in [("School", school), ("Yours", self.exception_items)]:
             for i in items:
-                self.exception_tree.insert("", "end", values=(str(i.date), i.action, i.pattern, "Inherit" if i.time_shift_minutes is None else i.time_shift_minutes, i.half_day.removeprefix("no-"), i.note, source))
+                from .exception_times import window_description
+                description = " · ".join(filter(None, [window_description(i), i.note]))
+                row = self.exception_tree.insert("", "end", values=(str(i.date), i.action, i.pattern, "Inherit" if i.time_shift_minutes is None else i.time_shift_minutes, i.half_day.removeprefix("no-"), description, source))
+                self.exception_rows[row] = i
 
     def select_exception(self):
         selected = self.exception_tree.selection()
         if not selected:
             return
         day, action, pattern, shift, skip, note, _ = self.exception_tree.item(selected[0], "values")
+        item = self.exception_rows[selected[0]]
+        self.exc_end.set("")
+        self.exc_blank.set(item.blank_hours)
+        self.exc_morning.set(item.morning_cutoff)
+        self.exc_afternoon.set(item.afternoon_cutoff)
+        self.exc_overlap.set(item.overlap)
         self.exc_date.set(day)
         self.exc_action.set(action)
         self.exc_pattern.set(pattern)
         self.exc_shift.set({"0": "Normal", "20": "Late (+20 min)"}.get(str(shift), str(shift)))
-        self.exc_note.set(note)
+        self.exc_note.set(item.note)
         self.exc_half.set({"": "All sessions", "morning": "No morning", "afternoon": "No afternoon"}[skip])
         self.update_exception_fields()
 
@@ -509,18 +533,30 @@ class CalendarApp:
         text = self.exc_shift.get()
         shift = None if action == "off" else shifts[text] if text in shifts else int(text)
         half = "" if action == "off" else {"All sessions": "", "No morning": "no-morning", "No afternoon": "no-afternoon"}[self.exc_half.get()]
-        item = DayOverride(day, action, self.exc_pattern.get() if action == "use" else "", shift, self.exc_note.get().strip(), half)
-        items = [i for i in self.exception_items if i.date != day] + [item]
+        from dataclasses import replace
+        item = DayOverride(day, action, self.exc_pattern.get() if action == "use" else "", shift, self.exc_note.get().strip(), half,
+                           self.exc_blank.get().strip(), self.exc_morning.get().strip(), self.exc_afternoon.get().strip(), self.exc_overlap.get())
+        days = self.exception_dates()
+        items = [i for i in self.exception_items if i.date not in days] + [replace(item, date=d) for d in days]
         self.ctx.save_exceptions(items, self.exception_digest)
         self.weekdays_var.set(False)
         self.refresh_exceptions()
-        self.status.set(f"Saved exception for {day}. Refresh the preview to see it.")
+        self.status.set(f"Saved exceptions for {min(days)} to {max(days)}. Refresh the preview to see them.")
 
     def remove_exception(self):
-        day = parse_date(self.exc_date.get().strip())
-        self.ctx.save_exceptions([i for i in self.exception_items if i.date != day], self.exception_digest)
+        days = self.exception_dates()
+        self.ctx.save_exceptions([i for i in self.exception_items if i.date not in days], self.exception_digest)
         self.refresh_exceptions()
-        self.status.set(f"Removed your exception for {day}. School/default rules apply again.")
+        self.status.set("Removed your exceptions for the selected dates. School/default rules apply again.")
+
+    def exception_dates(self):
+        """GUI fields stay ISO even though the terminal accepts short dates."""
+        from datetime import timedelta
+        first = parse_date(self.exc_date.get().strip())
+        last = parse_date(self.exc_end.get().strip()) if self.exc_end.get().strip() else first
+        if not 0 <= (last - first).days < 3660:
+            raise CalendarError("Choose an ordered exception range of at most 3,660 days.")
+        return {first + timedelta(days=offset) for offset in range((last - first).days + 1)}
 
     def close(self):
         try:

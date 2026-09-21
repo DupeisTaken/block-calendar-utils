@@ -27,13 +27,13 @@ A new intent starts a new action. Actions run left to right. Repeat `-w` to writ
 
 An error or Ctrl+C/EOF stops subsequent actions. Completed saves remain saved; the workflow is not a transaction. A preview displays events and continues without a confirmation prompt. To review before exporting, run inspection and export separately. After a failed export following a successful write, retry only the export.
 
-`--root PATH`, `--profile NAME` and `--semester ID` apply to the entire workflow wherever they appear. Conflicting values are rejected. Other options apply only to their action: repeat dates, clubs, filters and exception rules for both preview and export.
+`--root PATH`, `--profile NAME` and `--semester ID` apply to the entire workflow wherever they appear. Conflicting values are rejected. Other options apply only to their action: repeat dates, activity overrides, filters and exception rules for both preview and export.
 
 ```sh
 python -m shbs-calendar --profile student -w --courses --set A "Mathematics" -w --activities --set club-tue "Chess Club" -e --day 9.14:9.18 --clubs
 ```
 
-`-i`, `-w` and `-e` always start workflow actions. Use `--week`, `--exception`, `--edit` and `--import` in full. Other short flags use the first letter within their scope; colliding secondary options stay long-only. For example, `-d` means `--day` in an export, but `--disable` in a course-write action. `--profile`, `--semester`, `--clubs`, `--only`, `--exclude`, `--overwrite` and `--docs` are long-only.
+`-i`, `-w` and `-e` always start workflow actions. Use `--week`, `--exception`, `--edit` and `--import` in full. Other short flags use the first letter within their scope; colliding secondary options stay long-only. For example, `-d` means `--day` in an export, but `--disable` in a course-write action. `--profile`, `--semester`, `--clubs`, `--noclub`, `--nocas`, `--only`, `--exclude`, `--overwrite` and `--docs` are long-only.
 
 Use `--` before literal positional values that start with a dash, for example `-w --courses --set -- A "--export"`. Everything after `--` is literal, so put that action last or run it separately. Option values starting with a dash can use `=`, for example `--room=--write`. Ordinary names and paths are never interpreted as actions.
 
@@ -73,7 +73,7 @@ Select a reviewed semester before entering names. Courses and activities default
 | --- | --- |
 | `--courses` | Default name entry; `--edit [BLOCK ...]`, `--set BLOCK NAME`, `--clear BLOCK ...`, `--enable BLOCK ...`, `--disable BLOCK ...`, `--import FILE` |
 | `--activities` | Default club-name entry; `--edit [ID ...]`, `--set ID NAME`, `--clear ID`, `--enable ID`, `--disable ID` |
-| `--exceptions` | `--set DATE` with a rule, or `--remove DATE` |
+| `--exceptions` | `--set DATE[:DATE]` with rules/filters, or `--remove DATE[:DATE]` |
 | `--semesters` | `--use ID` to select a timetable, or `--new ID` to create one |
 | `--init` | Create missing blank course and personal-exception files without replacing existing data |
 
@@ -113,12 +113,13 @@ Preview, validation and export share these options:
 | `--weeks COUNT` | 1–520 consecutive weeks; default 1, only with week selectors |
 | `--first-date DATE`, `--last-date DATE` | Inclusive endpoints; supply both |
 | `--only BLOCKS`, `--exclude BLOCKS` | Comma-separated course/study block filters; repeatable |
-| `--clubs`, `--cas` | Include named enabled clubs or fixed-title CAS; default off |
+| `--clubs`, `--noclub` | Include named enabled clubs (default) or exclude them |
+| `--cas`, `--nocas` | Include or exclude fixed-title CAS (default off) |
 | `--late`, `--normal` | Shift start/end +20 minutes or use normal timing; normal is default |
-| `--exception DATE RULE` | Change one date for this action; repeatable |
+| `--exception DATE[:DATE] RULE` | Change a date or inclusive range for this action; repeatable |
 | `--schedule exceptions` | Also apply saved school/personal rules |
 
-Supply one date selector per action. `--day 9.14 --day 9.18` is rejected; use a range. A week selector takes one date, not a range. All ranges are capped at 3,660 days. Filters never edit saved selections and do not filter opted-in CAS/clubs. CLI choices do not inherit or change remembered GUI export preferences.
+Supply one date selector per action. `--day 9.14 --day 9.18` is rejected; use a range. A week selector takes one date, not a range. All ranges are capped at 3,660 days. Block filters never edit saved selections and do not filter included CAS/clubs. Date/time exceptions do affect those activities. CLI choices do not inherit or change remembered GUI export preferences.
 
 | Date or range | Meaning |
 | --- | --- |
@@ -142,7 +143,7 @@ python -m shbs-calendar -i --day 9.14:9.18 --exception 9.18 Mon
 python -m shbs-calendar -e --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon
 ```
 
-Rules include `Mon`–`Sun`, a semester-defined pattern, `off`, `late`, `normal`, `no-morning` and `no-afternoon`. A weekday rule needs a pattern mapped to that weekday. `off` removes every event, including activities. Independent weekday, timing and half-day rules compose on the same date; contradictory rules and dates outside the selected range are errors.
+Rules include `Mon`–`Sun`, a semester-defined pattern, `off`, `late`, `normal`, `no-morning` and `no-afternoon`, plus the [time-window rules below](#blank-dates-and-hours). A weekday rule needs a pattern mapped to that weekday. `off` removes every event, including activities. Independent weekday, timing and half-day rules compose on the same date; contradictory rules and dates outside the selected range are errors.
 
 To save a rule for future exports, write it to the personal exception CSV:
 
@@ -152,11 +153,49 @@ python -m shbs-calendar -e --day 9.14:9.18 --schedule exceptions
 python -m shbs-calendar -w --exceptions --remove 9.18
 ```
 
-For `--set DATE`, choose exactly one of `--off`, `--follow PATTERN`, `--late`, `--normal`, `--no-morning` or `--no-afternoon`. `--follow` takes the full pattern name (`monday` in this preset). With `--follow`, `--shift MINUTES` replaces the export shift with -720 to 720 minutes, staying within the same day. Add `--half-day no-morning` or `--half-day no-afternoon` to a weekday/timing rule; `--note TEXT` adds a preview explanation. A closure cannot have a half-day filter.
+For `--set DATE[:DATE]`, supply time filters below or choose one of `--off`, `--follow PATTERN`, `--late`, `--normal`, `--no-morning` or `--no-afternoon`. `--follow` takes the full pattern name (`monday` in this preset). With `--follow`, `--shift MINUTES` replaces the export shift with -720 to 720 minutes, staying within the same day. Add `--half-day no-morning` or `--half-day no-afternoon` to a weekday/timing rule; `--note TEXT` adds a preview explanation. A closure cannot combine with half-day or time filters.
 
 Saved rows apply only with `--schedule exceptions`, which requires a saved or inline rule inside the range. Personal rows replace school rows in full. `--set` replaces the entire personal row, so repeat fields you want to keep. Removing a personal rule can reveal a school rule underneath. An inline rule replaces the whole saved row for its date, too: an inline `late` alone discards a saved weekday substitution; repeat both inline rules to retain both effects. Explicit `--schedule weekdays` cannot accompany inline exceptions.
 
-Half-day filtering uses final start times after pattern substitution, duration choices and shifts. At the semester cutoff (default **12:30**), `no-morning` removes earlier starts; `no-afternoon` removes starts at or after it. Whole sessions, including activities, are kept or removed without splitting.
+Half-day filtering uses final start times after pattern substitution, duration choices and shifts. At the semester cutoff (default **12:30**), `no-morning` removes earlier starts; `no-afternoon` removes starts at or after it. These original half-day rules keep or remove whole sessions. Explicit cutoffs below use the chosen overlap policy.
+
+### Blank dates and hours
+
+Exception dates accept the same inclusive ranges as `--day`. Use `off` to blank every event on those dates. Time windows use the school clock after weekday substitution, timing options and shifts.
+
+```sh
+python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --exception 2026-09-15:2026-09-16 off
+python -m shbs-calendar -e --day 2026-09-14:2026-09-18 --exception 2026-09-18 blank=10:00-11:00
+python -m shbs-calendar -i --day 2026-09-18 --exception 2026-09-18 blank=10:00-11:00 --exception 2026-09-18 overlap=remove
+python -m shbs-calendar -i --day 2026-09-18 --exception 2026-09-18 no-morning=09:30 --exception 2026-09-18 no-afternoon=15:00
+python -m shbs-calendar -w --exceptions --set 2026-09-14:2026-09-18 --blank-hours 10:00-11:00 --morning-cutoff 09:00 --afternoon-cutoff 16:00 --overlap trim
+```
+
+`trim` is the default: shorten overlapping sessions and retain both pieces when a blank falls in the middle. Choose `overlap=remove` (saved rules: `--overlap remove`) to remove any overlapping session entirely. Repeat `blank=...` / `--blank-hours`, or separate windows with commas. Windows include their start and exclude their end; sessions merely touching a boundary remain. `24:00` is allowed as an end boundary. Blank windows and both cutoffs may combine; a morning cutoff later than the afternoon cutoff is rejected. Cutoffs blank times **before** the morning boundary and **from** the afternoon boundary. These rules also affect clubs and CAS.
+
+For example, blanking 10:00–11:00 in a 09:00–12:00 session gives:
+
+| Overlap choice | Result |
+| --- | --- |
+| `trim` | Two events: 09:00–10:00 and 11:00–12:00. |
+| `remove` | The entire session is omitted. |
+
+Choose one overlap policy per date; it applies to all that date's blank windows and custom cutoffs. The policy requires a time filter. For saved rules, use `--overlap remove`; for inline rules, repeat `--exception DATE overlap=remove` with the same date or range as the filter.
+
+Saved `--set` and `--remove` accept a date or range and save once. `--set` replaces each date's entire personal rule. Saved rules still require `--schedule exceptions`; inline rules never save. Ranges are limited to 3,660 days. Keep `--noclub` / `--nocas` on each action where you want those activities excluded. Opposing include/exclude flags on one action are errors.
+
+After saving the range in the example above, preview its rules or remove the whole batch:
+
+```sh
+python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --schedule exceptions
+python -m shbs-calendar -w --exceptions --remove 2026-09-14:2026-09-18
+```
+
+No named enabled clubs is a valid default selection; it adds no club events. Explicit `--clubs` instead reports an error when no enabled clubs are available. `--noclub` excludes clubs without changing saved names or enabled states. To exclude activities in both preview and export:
+
+```sh
+python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --noclub --nocas -e --day 2026-09-14:2026-09-18 --noclub --nocas
+```
 
 ## Context and definitions
 
@@ -182,8 +221,8 @@ Keep the same context options when following a correction. The fragments below f
 | Destination exists | Retry the export with `--overwrite`, or an unused `--output "exports/another-name.ics"`. |
 | No timetable selected | Inspect `-i --semesters`, review `-i --semesters --show ID`, then select `-w --semesters --use ID`. |
 | Profile not set up | Run `-w --courses` with that profile/semester to enter names. |
-| No events | Replace `-e` with `-i` and remove `--output`/`--overwrite`. Inspect courses, filters, dates and closures; for clubs inspect `-i --activities` and include `--clubs`. |
-| No enabled clubs | Use `-w --activities --set ID "Club name"` or `-w --activities --enable ID`. |
+| No events | Replace `-e` with `-i` and remove `--output`/`--overwrite`. Inspect courses, filters, dates and closures; for clubs inspect `-i --activities`, check saved names/enabled state, and remove `--noclub` if present. |
+| No enabled clubs with explicit `--clubs` | Name/enable a club with `-w --activities --set ID "Club name"` or `--enable ID`, or omit `--clubs` to allow none. |
 | T needs timing | Add `--timing study-hall` or `--timing toefl` to `-w --courses --set T "Name"`. |
 | No exceptions in range | Remove `--schedule exceptions`, or add/save a rule inside the selected dates. |
 | CSV changed during name entry | Rerun name entry to load the latest file, then reenter edits. In the GUI use **Reload CSV** on Courses. |

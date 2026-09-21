@@ -21,6 +21,54 @@ from shbs_calendar.storage import load_semester
 
 
 class CLITests(unittest.TestCase):
+    def test_blank_date_ranges_and_saved_time_filters(self):
+        ctx = self.init()
+        before = ctx.exceptions_path.read_bytes()
+        result = self.ok("-i", "--day", "2026-09-14:2026-09-18", "--exception", "2026-09-14:2026-09-18", "off")
+        self.assertIn("0 events", result.stdout)
+        self.assertEqual(ctx.exceptions_path.read_bytes(), before)
+        self.ok("-w", "--exceptions", "--set", "2026-09-14:2026-09-16", "--blank-hours", "10:00-11:00", "--morning-cutoff", "09:00", "--afternoon-cutoff", "16:00", "--overlap", "remove")
+        self.assertEqual(len(ctx.exceptions()), 3)
+        self.assertTrue(all(i.blank_hours == "10:00-11:00" and i.overlap == "remove" for i in ctx.exceptions()))
+        self.assertIn("morning cutoff 09:00", self.ok("-i", "--exceptions").stdout)
+        self.ok("-w", "--exceptions", "--remove", "2026-09-14:2026-09-16")
+        self.assertEqual(ctx.exceptions(), [])
+        for dates in ("2026-09-16:2026-09-14", "2026-09-31", "2020-01-01:2040-01-01"):
+            self.assertEqual(self.run_cli("-w", "--exceptions", "--set", dates, "--off").returncode, 2)
+
+    def test_time_window_export_utc_and_activity_flags_per_stage(self):
+        ctx = self.init()
+        self.ok("-w", "--activities", "--set", "club-tue", "Chess")
+        original = ctx.activities_path.read_bytes()
+        self.assertIn("Chess", self.ok("-i", "--day", "2026-09-15").stdout)
+        result = self.ok("-i", "--day", "2026-09-15", "--noclub", "--nocas")
+        self.assertNotIn("Chess", result.stdout)
+        for flags in (("--cas", "--nocas"), ("--clubs", "--noclub")):
+            self.assertEqual(self.run_cli("-i", "--day", "2026-09-15", *flags).returncode, 2)
+        result = self.ok("-i", "--day", "2026-09-15", "--noclub", "-i", "--day", "2026-09-15")
+        self.assertEqual(result.stdout.count("Chess"), 1)
+        output = self.root / "trimmed.ics"
+        self.ok("-e", "--day", "2026-09-15", "--only", "C", "--exception", "2026-09-15", "blank=16:00-16:10", "--output", str(output))
+        data = output.read_text()
+        self.assertEqual(data.count("SUMMARY:Chess"), 2)
+        self.assertIn("DTEND:20260915T080000Z", data)
+        self.assertIn("DTSTART:20260915T081000Z", data)
+        self.assertEqual(ctx.activities_path.read_bytes(), original)
+
+    def test_new_exception_help_never_executes_earlier_write(self):
+        ctx = self.init()
+        before = ctx.exceptions_path.read_bytes()
+        result = self.ok("-w", "--exceptions", "--set", "2026-09-14:2026-09-16", "--off", "-e", "--help")
+        self.assertIn("--noclub", result.stdout)
+        self.assertIn("--nocas", result.stdout)
+        self.assertEqual(ctx.exceptions_path.read_bytes(), before)
+        # A malformed later time rule must not leave earlier writes behind.
+        original_courses = ctx.courses_path.read_bytes()
+        for options in (("--blank-hours", "11:00-10:00"), ("--overlap", "trim"), ()):
+            result = self.run_cli("-w", "--courses", "--set", "A", "Changed", "-w", "--exceptions", "--set", "2026-09-14", *options)
+            self.assertEqual(result.returncode, 2)
+            self.assertEqual(ctx.courses_path.read_bytes(), original_courses)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="shbs with spaces ")
         self.root = Path(self.temp.name)
@@ -630,12 +678,12 @@ class CLITests(unittest.TestCase):
         self.ok("exceptions", "set", "2026-09-18", "--no-morning")
         self.assertEqual(ctx.exceptions()[0].half_day, "no-morning")
 
-    def test_named_clubs_and_cas_are_opt_in(self):
+    def test_named_clubs_default_on_and_cas_opt_in(self):
         self.init()
         self.ok("activities", "set", "club-tue", "Chess", "--room", "Library")
         self.ok("activities", "set", "club-wed", "Robotics")
         self.assertIn("club-tue: Chess", self.ok("activities", "list").stdout)
-        self.assertIn("5 events", self.ok("preview", "--week", "2026-09-14").stdout)
+        self.assertIn("7 events", self.ok("preview", "--week", "2026-09-14").stdout)
         self.assertIn("8 events", self.ok("preview", "--week", "2026-09-14", "--cas", "--clubs").stdout)
         self.ok("activities", "disable", "club-wed")
         self.assertIn("7 events", self.ok("preview", "--week", "2026-09-14", "--cas", "--clubs").stdout)

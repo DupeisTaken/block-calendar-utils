@@ -6,7 +6,7 @@ data interpretation. Yearless dates always use the computer's current year.
 """
 
 import re
-from datetime import date
+from datetime import date, timedelta
 
 from .models import CalendarError
 
@@ -70,3 +70,11 @@ def parse_cli_range(value: str, *, today: date | None = None) -> tuple[date, dat
     if first > last:
         raise CalendarError(f"End date {last} is before start date {first}. Put the earlier date first. For a range crossing New Year, include both years, e.g. -d 2026-12-30:2027-01-02.")
     return first, last
+
+
+def expand_cli_range(value, *, today=None):
+    """Bound expansion before allocating per-date exception rows."""
+    first, last = parse_cli_range(value, today=today)
+    if (last - first).days >= 3660:
+        raise CalendarError("Choose at most 3,660 days for an exception range.")
+    return [first + timedelta(days=offset) for offset in range((last - first).days + 1)]

@@ -164,7 +164,7 @@ def parser():
 
     activities = add_command(subs, "activities", parents=[common], help="List CAS/club slots and save club names",
         description="Run -a to enter club names for the predefined times. No timetable editing needed.",
-        epilog='Examples:\n  --write --activities\n  --inspect --activities\n  --write --activities --set club-tue "Chess Club"\n\nInclude saved clubs with --export --day DATE --clubs.\nCAS has a fixed name; use --cas.')
+        epilog='Examples:\n  --write --activities\n  --inspect --activities\n  --write --activities --set club-tue "Chess Club"\n\nNamed enabled clubs are included by default; use --noclub to exclude.\nCAS has a fixed name; use --cas.')
     actions = activities.add_subparsers(dest="action")
     add_command(actions, "list", parents=[common], help="Show activity IDs, names and times")
     edit = add_command(actions, "edit", parents=[common], help="Prompt for club names, then save once (default)")
@@ -182,10 +182,10 @@ def parser():
     actions = exceptions.add_subparsers(dest="action")
     add_command(actions, "list", parents=[common])
     sub = add_command(actions, "remove", parents=[common], help="Remove your exception; school rules may still apply")
-    sub.add_argument("date", help="Personal rule date, e.g. 2026-09-18; school rules remain")
-    sub = add_command(actions, "set", parents=[common], help="Save or replace one unusual date")
-    sub.add_argument("date", help="Date to change, e.g. 2026-09-18; replaces your entire rule for this date")
-    choice = sub.add_mutually_exclusive_group(required=True)
+    sub.add_argument("date", help="Date or inclusive range; school rules remain")
+    sub = add_command(actions, "set", parents=[common], help="Save or replace unusual dates")
+    sub.add_argument("date", help="Date or inclusive range; replaces your entire rule for each date")
+    choice = sub.add_mutually_exclusive_group()
     choice.add_argument("--off", "-O", action="store_true", help="No events, including CAS and clubs")
     choice.add_argument("--follow", "-f", metavar="PATTERN", help="Timetable pattern, e.g. monday; see --inspect --semesters --show ID")
     choice.add_argument("--late", "-l", action="store_true", help="Usual pattern, 20 minutes later")
@@ -194,6 +194,10 @@ def parser():
     choice.add_argument("--no-afternoon", "-a", action="store_true", help="Usual pattern, remove afternoon sessions")
     sub.add_argument("--shift", "-S", type=int, metavar="MINUTES", help="With --follow only: replace export timing by -720 to 720 minutes; must stay within the day")
     sub.add_argument("--half-day", "-H", choices=["no-morning", "no-afternoon"], help="Also filter a saved weekday/timing override")
+    sub.add_argument("--blank-hours", action="append", default=[], metavar="HH:MM-HH:MM", help="Blank a time window; repeat for more windows")
+    sub.add_argument("--morning-cutoff", metavar="HH:MM", help="Blank times before this boundary")
+    sub.add_argument("--afternoon-cutoff", metavar="HH:MM", help="Blank times from this boundary onward")
+    sub.add_argument("--overlap", choices=["trim", "remove"], help="Trim around blank hours (default), or remove overlapping sessions")
     sub.add_argument("--note", "-n", default="", metavar="TEXT", help="Explanation shown in previews")
 
     for command in ("export", "preview", "validate"):
@@ -207,11 +211,15 @@ def parser():
         sub.add_argument("--last-date", "--end", "-u", dest="end", metavar="DATE", help="Last inclusive date; also supply --first-date")
         sub.add_argument("--weeks", "-n", type=int, metavar="COUNT", help="1–520 consecutive weeks; only with --week, --this-week or --next-week")
         sub.add_argument("--schedule", "-S", choices=["weekdays", "exceptions"], help="weekdays ignores exceptions; exceptions applies saved files as well as inline rules")
-        sub.add_argument("--exception", "-e", nargs=2, action="append", default=[], metavar=("DATE", "RULE"), help="Repeat for weekday changes (Mon–Sun), no-morning, no-afternoon, off, late or normal")
+        sub.add_argument("--exception", "-e", nargs=2, action="append", default=[], metavar=("DATE[:DATE]", "RULE"), help="Repeat: off, Mon–Sun, blank=HH:MM-HH:MM, no-morning[=HH:MM], no-afternoon[=HH:MM], overlap=trim/remove, late or normal")
         sub.add_argument("--only", "-i", action="append", default=[], metavar="BLOCKS", help="Only these saved selections, e.g. B or B,T; repeatable")
         sub.add_argument("--exclude", "-X", action="append", default=[], metavar="BLOCKS", help="Omit these blocks for this export, e.g. A or A,T; repeatable")
-        sub.add_argument("--cas", "-c", action="store_true", help="Include CAS with its fixed title (default: off)")
-        sub.add_argument("--clubs", "-C", action="store_true", help="Include enabled, named clubs (default: off)")
+        cas = sub.add_mutually_exclusive_group()
+        cas.add_argument("--cas", "-c", action="store_true", help="Include CAS with its fixed title (default: off)")
+        cas.add_argument("--nocas", dest="cas", action="store_false", help="Exclude CAS (default)")
+        clubs = sub.add_mutually_exclusive_group()
+        clubs.add_argument("--clubs", "-C", action="store_true", default=None, help="Include enabled, named clubs (default: on)")
+        clubs.add_argument("--noclub", dest="clubs", action="store_false", help="Exclude clubs for this action")
         timing = sub.add_mutually_exclusive_group()
         timing.add_argument("--late", "-l", action="store_true", help="Start/end 20 minutes later")
         timing.add_argument("--normal", "-N", action="store_true", help="Normal times (default)")
@@ -259,7 +267,7 @@ def command_settings(args, settings=None, *, today=None):
     if args.exception and mode == "weekdays":
         raise CalendarError("--schedule weekdays ignores exceptions. Omit it when using --exception.")
     today = today or date.today()
-    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=mode, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs)
+    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=mode, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs is not False, require_clubs=args.clubs is True)
     if (args.start is None) != (args.end is None):
         raise CalendarError("Provide --first-date and --last-date together, or use --day DATE / --day-range FIRST:LAST.")
     if args.day is not None:
@@ -281,7 +289,8 @@ def command_settings(args, settings=None, *, today=None):
             raise CalendarError("--weeks applies only to --week, --this-week or --next-week.")
         result["weeks"] = args.weeks
     # Inline rules reach the existing exception composer with canonical dates.
-    result["inline_exceptions"] = [(parse_cli_date(day, today=today).isoformat(), rule) for day, rule in args.exception]
+    from .cli_dates import expand_cli_range
+    result["inline_exceptions"] = [(day.isoformat(), rule) for dates, rule in args.exception for day in expand_cli_range(dates, today=today)]
     return result
 
 
@@ -360,7 +369,7 @@ def activity_command(args, ctx):
             label = "CAS (fixed title)" if kind == "cas" else item.name or "(unnamed club)"
             slots = ", ".join(f"{s.pattern} {s.start:%H:%M}–{s.end:%H:%M}" for s in ctx.semester.activity_sessions if s.block == item.activity)
             emit(f"  {item.activity}: {label}\n    {slots}\n")
-        emit("  Include with --cas or --clubs · More: --activities --docs")
+        emit("  Clubs included by default; CAS with --cas · More: --activities --docs")
         return
     if args.action == "edit":
         # Predefined slots supply the clock; this batch edits names only. Keep
@@ -381,7 +390,7 @@ def activity_command(args, ctx):
             name = old.name if not text else "" if text == "-" else text
             items[index] = replace(old, name=name, enabled=bool(name) if name != old.name else old.enabled)
         ctx.save_activities(items, expected)
-        emit(f"Saved club names:\n  {ctx.activities_path}\n\n  Include with --clubs · More: --activities --docs")
+        emit(f"Saved club names:\n  {ctx.activities_path}\n\n  Clubs included by default; exclude with --noclub · More: --activities --docs")
         return
     matches = [i for i, item in enumerate(items) if item.activity == args.id]
     if not matches or ctx.semester.activities[args.id] != "club":
@@ -397,6 +406,33 @@ def activity_command(args, ctx):
     emit(f"Saved activities:\n  {ctx.activities_path}")
 
 
+def exception_changes(args):
+    """Preflight range/time syntax before a workflow is allowed to save anything."""
+    from .cli_dates import expand_cli_range
+    from .exception_times import blank_windows
+    days = expand_cli_range(args.date, today=date.today())
+    if args.action == "remove":
+        return []
+    if args.shift is not None and not args.follow:
+        raise CalendarError("--shift requires --follow; use --late or --normal for the usual weekday.")
+    half = "no-morning" if args.no_morning else "no-afternoon" if args.no_afternoon else args.half_day or ""
+    if args.half_day and half != args.half_day:
+        raise CalendarError("Choose only one half-day filter.")
+    if not any((args.off, args.follow, args.late, args.normal, half, args.blank_hours, args.morning_cutoff, args.afternoon_cutoff)):
+        raise CalendarError("Choose --off, --follow, --late, --normal or a half-day/time filter.")
+    if args.overlap and not (args.blank_hours or args.morning_cutoff or args.afternoon_cutoff):
+        raise CalendarError("--overlap requires --blank-hours or a morning/afternoon cutoff.")
+    action = "off" if args.off else "use" if args.follow else "adjust" if args.late or args.normal else "partial"
+    shift = args.shift if args.follow else 20 if args.late else 0 if args.normal else None
+    items = [DayOverride(day, action, args.follow or "", shift, args.note, half,
+                             ",".join(args.blank_hours), args.morning_cutoff or "", args.afternoon_cutoff or "", args.overlap or "trim") for day in days]
+    for item in items:
+        blank_windows(item)
+        if item.action == "off" and (item.half_day or item.blank_hours or item.morning_cutoff or item.afternoon_cutoff):
+            raise CalendarError("--off cannot combine with half-day or time filters.")
+    return items
+
+
 def exception_command(args, ctx):
     if args.action == "list":
         emit("Exceptions\n")
@@ -405,21 +441,16 @@ def exception_command(args, ctx):
             for item in items:
                 shift = "inherit" if item.time_shift_minutes is None else f"{item.time_shift_minutes:+} min"
                 half = f" · {item.half_day}" if item.half_day else ""
-                emit(f"  {item.date}: {item.action} {item.pattern} · {shift}{half} · {source} · {item.note}")
+                from .exception_times import window_description
+                windows = window_description(item)
+                emit(f"  {item.date}: {item.action} {item.pattern} · {shift}{half}{' · ' + windows if windows else ''} · {source} · {item.note}")
         emit("\n  Apply with --schedule exceptions · More: --write --exceptions --docs")
         return
-    day = parse_cli_date(args.date)
+    from .cli_dates import expand_cli_range
+    days = set(expand_cli_range(args.date, today=date.today()))
     expected = digest(ctx.exceptions_path)
-    items = [item for item in ctx.exceptions() if item.date != day]
-    if args.action == "set":
-        if args.shift is not None and not args.follow:
-            raise CalendarError("--shift requires --follow; use --late or --normal for the usual weekday.")
-        half = "no-morning" if args.no_morning else "no-afternoon" if args.no_afternoon else args.half_day or ""
-        if args.half_day and half != args.half_day:
-            raise CalendarError("Choose only one half-day filter.")
-        action = "off" if args.off else "use" if args.follow else "partial" if args.no_morning or args.no_afternoon else "adjust"
-        shift = args.shift if args.follow else 20 if args.late else 0 if args.normal else None
-        items.append(DayOverride(day, action, args.follow or "", shift, args.note, half))
+    items = [item for item in ctx.exceptions() if item.date not in days]
+    items.extend(exception_changes(args))
     ctx.save_exceptions(items, expected)
     emit(f"Saved exceptions:\n  {ctx.exceptions_path}")
 
@@ -501,7 +532,7 @@ def main(argv=None, *, prepared=None):
         # Report bad date syntax before opening/creating any student files.
         export_settings = command_settings(args) if args.command in {"export", "preview", "validate"} else None
         if args.command == "exceptions" and args.action != "list":
-            args.date = parse_cli_date(args.date).isoformat()
+            exception_changes(args)
         settings = workspace.settings()
         sid = workspace.selected_semester(getattr(args, "semester", None))
         profile = getattr(args, "profile", None) or settings["profile"]
@@ -524,7 +555,7 @@ def main(argv=None, *, prepared=None):
                 emit(f"Valid: {len(preview.events)} events, {preview.start} to {preview.end}, {preview.clock}")
             else:
                 if not preview.events:
-                    raise CalendarError("No events in this range.\nUse --inspect --courses and --inspect --day FIRST:LAST to check selections and dates. For clubs, inspect --activities and include --clubs in the export.")
+                    raise CalendarError("No events in this range.\nUse --inspect --courses and --inspect --day FIRST:LAST to check selections and dates. For clubs, inspect --activities and check that --noclub is absent.")
                 output = ctx.export(preview, args.output, overwrite=args.overwrite)
                 emit(f"Exported {len(preview.events)} events · {preview.start} to {preview.end} · {preview.clock}\n{output}")
         return 0

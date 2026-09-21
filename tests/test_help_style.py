@@ -4,7 +4,9 @@ from contextlib import nullcontext, redirect_stdout
 import io
 import os
 import re
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from shbs_calendar.cli import main, parser, help_parser
@@ -20,6 +22,24 @@ class TerminalStream(io.StringIO):
 
 
 class HelpStyleTests(unittest.TestCase):
+    def test_exception_entry_help_exposes_time_filters_without_writes(self):
+        # Both entry routes must explain how to save filters without requiring
+        # a selected semester, opening prompts or creating a profile.
+        with tempfile.TemporaryDirectory() as folder:
+            for route in (["-w", "--exceptions"], ["-w", "--exceptions", "--help"],
+                          ["-i", "--exceptions", "--help"], ["-w", "--exceptions", "--docs"]):
+                output = io.StringIO()
+                with self.subTest(route=route), redirect_stdout(output), patch("builtins.input", side_effect=AssertionError("Help must not prompt")):
+                    try:
+                        self.assertEqual(main(["--root", folder, *route]), 0)
+                    except SystemExit as exc:
+                        self.assertEqual(exc.code, 0)
+                    text = output.getvalue()
+                    for flag in ("--blank-hours", "--morning-cutoff", "--afternoon-cutoff", "--overlap", "--schedule exceptions"):
+                        self.assertIn(flag, text)
+                    self.assertNotIn("\x1b", text)
+                    self.assertEqual(list(Path(folder).iterdir()), [])
+
     def test_help_exposes_required_arguments_choices_and_replacement(self):
         from shbs_calendar.cli_interface import render_help
         cli = parser()
@@ -34,7 +54,8 @@ class HelpStyleTests(unittest.TestCase):
                 self.assertIn(expected, help_parser(cli, path).format_help())
         self.assertIn("--blocks BLOCKS | --copy ID", help_parser(cli, ["semester", "new"]).format_help())
         saved = help_parser(cli, ["exceptions", "set"]).format_help()
-        self.assertIn("--off | --follow PATTERN", saved)
+        self.assertIn("--blank-hours HH:MM-HH:MM", saved)
+        self.assertIn("--overlap {trim,remove}", saved)
         self.assertIn("--half-day {no-morning,no-afternoon}", saved)
         preview = render_help(help_parser(cli, ["preview"]), detailed=True)
         self.assertIn("--layout {columns,list}", preview)

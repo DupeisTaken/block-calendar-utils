@@ -57,11 +57,11 @@ club-tue,Chess Club,true,Library
 club-wed,Robotics Club,true,Lab 2
 ```
 
-CAS's name must be blank and its exported title is always `CAS`; `--cas` opts it in. `--clubs` opts in enabled clubs, which require names. Both flags default off. Club files support UTF-8, quoted values, optional enabled/location columns, atomic saves, backups and stale-edit detection just like course files. Filter flags `--only`/`--exclude` affect academic/study blocks, while CAS/clubs have their own opt-in flags.
+CAS's name must be blank and its exported title is always `CAS`; `--cas` opts it in. Named enabled clubs default on; `--noclub` excludes them. CAS defaults off; `--nocas` explicitly excludes it. Club files support UTF-8, quoted values, optional enabled/location columns, atomic saves, backups and stale-edit detection just like course files. Filter flags `--only`/`--exclude` affect academic/study blocks, while CAS/clubs have their own inclusion flags.
 
 ## Date exceptions
 
-For one export, use inline rules, for example `python -m shbs-calendar --export --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon`. Inline weekday/timing/half-day rules compose on the same date without writing files. Saved files are read during CLI preview/export only with `--schedule exceptions`; inline rules then replace the saved row for their date in full. The `--inspect --exceptions`, `--write --exceptions --set` and `--write --exceptions --remove` commands read saved rules for inspection/editing independently of that export option.
+For one export, use inline rules, for example `python -m shbs-calendar --export --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon`. Inline weekday/timing/half-day/time-window rules compose on the same date without writing files. Saved files are read during CLI preview/export only with `--schedule exceptions`; inline rules then replace the saved row for their date in full. The `--inspect --exceptions`, `--write --exceptions --set` and `--write --exceptions --remove` commands read saved rules for inspection/editing independently of that export option.
 
 Shared path: `semesters/<semester>/exceptions.csv`.
 Personal path: `local/profiles/<profile>/<semester>/exceptions.csv`.
@@ -77,17 +77,29 @@ date,action,pattern,time_shift_minutes,note,half_day
 2026-09-23,partial,,,Afternoon only,no-morning
 ```
 
-- `off`: no events. Pattern and shift must be blank.
+- `off`: no events. Pattern, shift, half-day and time-filter fields must be blank; leave `overlap` blank or `trim`.
 - `use`: use a named pattern on this actual date. A weekday does not point to another date's exceptions, so swaps cannot form date-following loops.
 - `adjust`: use this date's normal weekday pattern with an explicit shift. A weekend without a base pattern needs `use`, not `adjust`.
-- `partial`: keep this date's normal pattern but remove morning or afternoon sessions. Requires `half_day` to be `no-morning` or `no-afternoon`. This optional column can also filter a `use` or `adjust` rule. Old CSVs without it still work.
-- `no-morning` removes sessions whose effective local start time is before the semester's `noon_cutoff` (default **12:30**); `no-afternoon` removes starts at or after it. The start includes any timing option and late shift. Whole sessions are removed or retained; intervals spanning the cutoff are never clipped. The rule covers selected classes, study halls and opted-in CAS/clubs.
+- `partial`: keep this date's normal pattern and filter sessions or hours. Requires a `half_day` filter or one of the blank-window fields below. This optional column can also filter a `use` or `adjust` rule. Old CSVs without it still work.
+- `no-morning` removes sessions whose effective local start time is before the semester's `noon_cutoff` (default **12:30**); `no-afternoon` removes starts at or after it. The start includes any timing option and late shift. Whole sessions are removed or retained; intervals spanning the cutoff are never clipped. The rule covers selected classes, study halls and included CAS/clubs.
 - A blank shift on `use` inherits the export setting. Explicit `0` or `20` **replaces** that setting. Shifts are never added twice. The CSV supports any whole-minute shift from -720 to 720 if it stays within the same day.
 - One row per date per file. Personal rows replace shared rows in full. Removing a personal row restores the school/default behavior, which may itself be a closure or different pattern.
 
 Use `--schedule exceptions` in a terminal export, or uncheck **Follows normal weekdays** in the GUI, to apply these files. That choice requires at least one exception inside the inclusive first/last date range. Dates without exceptions keep their normal weekday pattern. `--schedule weekdays` (the terminal default) uses only the regular timetable and leaves both exception files untouched. Commands such as `--write --exceptions --set 2026-09-18 --follow monday` collect all their information through arguments.
 
-The GUI supports normal/late shifts and a Session filter control. Choose `partial` for a half-day filter on the usual weekday, or `use` plus a filter for a substituted pattern. A CSV-edited custom shift and half-day rule are preserved when selecting/editing that row. Saved exceptions outside the range are retained for later; malformed rows are reported when saved exception scheduling reads the files. Inline dates outside the requested range are rejected, catching mistyped dates.
+Optional columns `blank_hours`, `morning_cutoff`, `afternoon_cutoff` and `overlap` extend old exception CSVs without migration. `blank_hours` contains comma-separated `HH:MM-HH:MM` windows (quote a CSV field containing commas). The morning cutoff blanks times before its boundary; the afternoon cutoff blanks times from its boundary onward. `overlap` defaults to `trim`, which can split a session; `remove` drops any overlapping session. These fields can combine with `use`, `adjust` or `partial`, but not `off`. Empty new columns retain legacy behavior. Matching explicit cutoffs replace the corresponding legacy half-day start-time filter. `24:00` is accepted as an end boundary. Saved date ranges expand to one ISO date row per day.
+
+Example with every supported column:
+
+```csv
+date,action,pattern,time_shift_minutes,note,half_day,blank_hours,morning_cutoff,afternoon_cutoff,overlap
+2026-09-24,partial,,,Shortened day,,"10:00-11:00,14:00-14:30",09:00,16:00,trim
+2026-09-25,partial,,,Remove interrupted sessions,,10:00-11:00,,,remove
+```
+
+Windows must end after they start on the same day. Overlapping or touching windows merge before they are applied. A morning cutoff later than the afternoon cutoff is invalid. Trimming preserves surviving portions; removing drops a session with any overlap. Sessions touching a boundary without crossing it remain. These checks use final local times after pattern, duration and shift choices. [Terminal examples](commands.md#blank-dates-and-hours) · [GUI controls](gui.md#blank-date-ranges-and-hours).
+
+The GUI supports normal/late shifts and a Session filter control. Choose `partial` for a half-day filter on the usual weekday, or `use` plus a filter for a substituted pattern. CSV-edited custom shifts, half-day rules and time windows are preserved when selecting/editing a row. Saved exceptions outside the range are retained for later; malformed rows are reported when saved exception scheduling reads the files. Inline dates outside the requested range are rejected, catching mistyped dates.
 
 ## Semester timetable
 

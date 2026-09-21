@@ -73,7 +73,9 @@ python -m shbs-calendar -i --day 0920-0924
 python -m shbs-calendar -e --day 0920-0924
 ```
 
-Preview first, check the titles and times, then run export. Add `--clubs` and/or `--cas` to **both** commands if you want those activities. Normal weekday patterns and normal timing are the terminal defaults. [Date formats, makeup days and closures](commands.md#dates-and-selections).
+Preview first, check the titles and times, then run export. Named enabled clubs are included by default. Add `--noclub` to exclude them, or `--cas` to include CAS, on **both** commands. CAS stays off by default; `--nocas` explicitly excludes it. Normal weekday patterns and normal timing are the terminal defaults. [Date formats, makeup days and closures](commands.md#dates-and-selections).
+
+For a closure, appointment or shorter day, [blank dates/hours or set morning and afternoon cutoffs](commands.md#blank-dates-and-hours). Preview with the same rules before exporting; choose whether overlapping sessions should be trimmed or removed.
 
 The command reports the calendar's path under `exports/`. An empty preview is valid, but an empty export is rejected; check names, enabled selections, dates and closures if no events appear.
 

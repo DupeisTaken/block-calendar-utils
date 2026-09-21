@@ -69,6 +69,9 @@ def main():
         app.exc_date.set("2026-09-18")
         app.exc_pattern.set("monday")
         app.exc_note.set("Friday follows Monday's classes")
+        app.exc_blank.set("10:00-11:00")
+        app.exc_morning.set("09:00")
+        app.exc_afternoon.set("16:00")
         app.save_exception()
         app.save()
         root.geometry("1120x800+30+30")
@@ -78,11 +81,6 @@ def main():
             root.update_idletasks()
             button = app.export_button
             assert button.winfo_rooty() + button.winfo_height() <= root.winfo_rooty() + root.winfo_height(), "Export button clipped"
-            if name == "exceptions":
-                button = app.save_date_button
-                assert button.winfo_rooty() + button.winfo_height() <= app.exceptions_tab.winfo_rooty() + app.exceptions_tab.winfo_height(), "Exception save button clipped"
-                bbox = app.exception_tree.bbox(app.exception_tree.get_children()[0])
-                assert bbox and bbox[1] + bbox[3] <= app.exception_tree.winfo_height(), "First exception row clipped"
             if sys.platform == "win32":
                 # Capture only our window even when another app occludes it.
                 image = ImageGrab.grab(window=int(root.frame(), 16))
@@ -92,6 +90,13 @@ def main():
             path = args.output / f"{name}-{args.scale}.png"
             image.save(path)
             print(path)
+            if name == "exceptions":
+                button = app.save_date_button
+                assert button.winfo_rooty() + button.winfo_height() <= app.exceptions_tab.winfo_rooty() + app.exceptions_tab.winfo_height(), "Exception save button clipped"
+                bbox = app.exception_tree.bbox(app.exception_tree.get_children()[0])
+                assert bbox and bbox[1] + bbox[3] <= app.exception_tree.winfo_height(), "First exception row clipped"
+
+        failures = []
 
         def step(number=0):
             try:
@@ -118,13 +123,16 @@ def main():
                     root.destroy()
                     return
                 root.after(400, lambda: step(number + 1))
-            except Exception:
+            except Exception as exc:
+                # Tk otherwise prints callback failures but exits successfully.
+                failures.append(exc)
                 root.destroy()
-                raise
 
         root.after(500, step)
         try:
             root.mainloop()
+            if failures:
+                raise failures[0]
         finally:
             try:
                 root.destroy()

@@ -31,7 +31,7 @@ class ActivityTests(unittest.TestCase):
 
     def test_optional_activities_times_titles_late_and_off_defaults(self):
         self.select_clubs()
-        self.assertFalse(self.ctx.preview(self.settings).events)
+        self.assertEqual([e.title for e in self.ctx.preview(self.settings).events], ["Chess", "Robotics"])
         result = self.ctx.preview(self.settings | dict(cas=True, clubs=True))
         self.assertEqual([(e.title, e.start.strftime("%a %H:%M"), e.end.strftime("%H:%M")) for e in result.events],
                          [("CAS", "Mon 15:05", "16:05"), ("Chess", "Tue 15:45", "16:35"), ("Robotics", "Wed 15:50", "16:40")])
@@ -50,7 +50,7 @@ class ActivityTests(unittest.TestCase):
 
     def test_activity_validation_conflicts_and_copy(self):
         with self.assertRaisesRegex(CalendarError, "--activities --set"):
-            self.ctx.preview(self.settings | dict(clubs=True))
+            self.ctx.preview(self.settings | dict(clubs=True, require_clubs=True))
         for item in [Activity("cas", "Wrong", True), Activity("club-tue", "", True), Activity("unknown", "Name", True)]:
             with self.assertRaises(CalendarError):
                 self.ctx.save_activities([item], digest(self.ctx.activities_path))

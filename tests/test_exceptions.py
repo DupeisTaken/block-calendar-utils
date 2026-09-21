@@ -18,6 +18,51 @@ MON, FRI = date(2026, 9, 14), date(2026, 9, 18)
 
 
 class ExceptionTests(unittest.TestCase):
+    def window_preview(self, rules, *, shift=0):
+        # A single long session makes boundary and split behavior unambiguous.
+        semester = replace(self.ctx.semester, sessions=(Session("edge", "long", "A", time(9), time(12)),),
+                           weekdays={0: "edge"}, activities={}, activity_sessions=(), timing_options={})
+        items = inline_overrides([(str(MON), rule) for rule in rules], semester, MON, MON)
+        return build_preview(semester, [Course("A", "数学", "Room 1", enabled=True)], self.ctx.identity,
+                             MON, MON, shift, personal=items)
+
+    def test_blank_windows_split_trim_remove_and_stable_ids(self):
+        def times(result):
+            return [(e.start.time(), e.end.time()) for e in result.events]
+        whole = self.window_preview([])
+        split = self.window_preview(["blank=10:00-11:00"])
+        self.assertEqual(times(split), [(time(9), time(10)), (time(11), time(12))])
+        self.assertEqual(split.events[0].uid, whole.events[0].uid)
+        self.assertNotEqual(split.events[0].uid, split.events[1].uid)
+        self.assertEqual([e.uid for e in split.events], [e.uid for e in self.window_preview(["blank=10:00-11:00"]).events])
+        self.assertTrue(all(e.title == "数学" and e.location == "Room 1" for e in split.events))
+        self.assertFalse(self.window_preview(["blank=10:00-11:00", "overlap=remove"]).events)
+        self.assertFalse(self.window_preview(["blank=00:00-24:00"]).events)
+        self.assertEqual(times(self.window_preview(["blank=08:00-09:00", "blank=12:00-13:00", "overlap=remove"])), times(whole))
+        self.assertEqual(times(self.window_preview(["blank=09:30-10:30", "blank=10:00-11:00"])), [(time(9), time(9, 30)), (time(11), time(12))])
+
+    def test_custom_cutoffs_apply_after_shift_and_can_combine(self):
+        result = self.window_preview(["no-morning=09:30", "no-afternoon=11:30"], shift=20)
+        self.assertEqual([(e.start.time(), e.end.time()) for e in result.events], [(time(9, 30), time(11, 30))])
+        self.assertFalse(self.window_preview(["no-morning=09:30", "overlap=remove"]).events)
+        # A matching custom cutoff replaces the old start-only half-day filter.
+        self.assertTrue(self.window_preview(["no-morning", "no-morning=09:30"]).events)
+
+    def test_blank_windows_validation_and_csv_roundtrip(self):
+        for rule in ("blank=", "blank=11:00-10:00", "blank=10:00-10:00", "blank=25:00-26:00", "blank=9-10", "blank=10:00-11:00,", "overlap=other", "no-morning=", "no-afternoon=25:00"):
+            with self.subTest(rule=rule), self.assertRaises(CalendarError):
+                self.window_preview([rule])
+        for rules in (["no-morning=12:00", "no-afternoon=10:00"], ["overlap=remove"], ["off", "blank=10:00-11:00"]):
+            with self.subTest(rules=rules), self.assertRaises(CalendarError):
+                self.window_preview(rules)
+        item = DayOverride(MON, "partial", blank_hours="10:00-11:00,14:00-15:00", morning_cutoff="09:00", afternoon_cutoff="17:00", overlap="remove")
+        self.ctx.save_exceptions([item], digest(self.ctx.exceptions_path))
+        self.assertEqual(self.ctx.exceptions(), [item])
+        with self.assertRaisesRegex(CalendarError, "changed on disk"):
+            self.ctx.save_exceptions([], "stale")
+        self.ctx.exceptions_path.write_text("date,action\n2026-09-14,off\n")
+        self.assertEqual(self.ctx.exceptions(), [DayOverride(MON, "off")])
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

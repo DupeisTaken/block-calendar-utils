@@ -54,11 +54,11 @@ Open **04 CAS & clubs**:
 
 1. Enter a name for each club slot you attend and optionally a **Room**.
 2. Keep its slot checkbox checked to enable the saved club.
-3. Check **Include enabled, named clubs** to include those clubs in preview/export.
+3. **Include enabled, named clubs** starts checked. Uncheck it to exclude clubs from preview/export.
 4. Check **Include CAS** if wanted. CAS always uses the title `CAS`.
 5. Click **Save selections** for the names, then refresh the preview to apply the inclusion choices.
 
-A named, enabled club is still excluded unless **Include enabled, named clubs** is checked. Typing a club name enables its slot; clearing the name disables it. CAS has no editable name.
+Named enabled clubs default on and CAS defaults off. Previously remembered inclusion choices are restored when reopening the GUI. Typing a club name enables its slot; clearing the name disables it. CAS has no editable name. With no named enabled clubs, preview/export continues with the other selections.
 
 Slot times are displayed below the entries. In the supplied preset they are Monday CAS 15:05–16:05, Tuesday club 15:45–16:35 and Wednesday club 15:50–16:40. This tab edits names, not school times. A semester without an activity definition has no slots to name.
 
@@ -88,16 +88,16 @@ An empty preview is valid. Check enabled names, activity inclusion, date range a
 
 ## Exceptions
 
-Use **03 Exceptions** to save a closure, makeup day, timing change or half-day rule. The table labels each row **School** or **Yours**. Your row replaces the school's entire rule on the same date.
+Use **03 Exceptions** to save closures, makeup days, timing changes or time filters. The table labels each row **School** or **Yours**, with time filters and notes under **Details**. Your row replaces the school's entire rule on the same date.
 
 Enter **Date · YYYY-MM-DD**, then select an **Action**:
 
 | Action | Function | Fields to set |
 | --- | --- | --- |
-| `off` | Remove all events for that date, including activities. | Date and optional Note; other controls are disabled. |
-| `use` | Follow a different timetable pattern on the actual date. | **Follow pattern**, **Timing**, and optionally **Session filter**. |
-| `adjust` | Change timing on the date's normal weekday pattern. | **Normal** or **Late (+20 min)** timing; optional session filter. |
-| `partial` | Keep the normal pattern but remove morning or afternoon sessions. | A **No morning** or **No afternoon** session filter. |
+| `off` | Remove all events for the selected dates, including activities. | Date, optional Through date and Note. Clear blank hours/cutoffs and select `trim`; pattern, timing and session filter are disabled. |
+| `use` | Follow a different timetable pattern on the actual dates. | **Follow pattern**, **Timing**, and optional session/time filters. |
+| `adjust` | Change timing on the normal weekday pattern. | **Normal** or **Late (+20 min)** timing; optional session/time filters. |
+| `partial` | Keep the normal pattern and filter sessions or hours. | At least one session filter, blank window or cutoff. |
 
 **Timing** choices:
 
@@ -105,13 +105,28 @@ Enter **Date · YYYY-MM-DD**, then select an **Action**:
 - **Normal** replaces that setting with no shift.
 - **Late (+20 min)** replaces it with a 20-minute shift; shifts are not added twice.
 
-**Session filter** uses final start times after pattern and timing changes. **No morning** removes starts before the semester cutoff (12:30 by default); **No afternoon** removes starts at or after it. Entire sessions are kept or removed, including CAS/clubs; a session spanning the cutoff is not split.
+**Session filter** uses final start times after pattern and timing changes. **No morning** removes starts before the semester cutoff (12:30 by default); **No afternoon** removes starts at or after it. Without a matching explicit cutoff, whole sessions are kept or removed. Custom cutoffs below instead use the selected overlap behavior. Both types affect classes and included CAS/clubs.
 
 For a Friday following Monday morning only, enter the Friday's date, select `use`, choose `monday`, leave Timing at **Inherit**, choose **No afternoon**, then click **Save date**. This saves the rule immediately and enables exception scheduling. Return to **Dates & preview** and refresh.
 
-To edit a row, select it, change its fields, and click **Save date**. Saving replaces your whole row for that date. Selecting a School row and saving creates a personal override; it does not edit the shared school file. **Remove my date** removes your row for the date in the Date field, which may reveal a school rule underneath.
+To edit a row, select it, change its fields, and click **Save date**. Selecting a row restores its filters and note and clears **Through date**, so editing one row affects just that date unless you enter an end date again. Saving replaces each selected date's whole personal row. Selecting a School row and saving creates a personal override; it does not edit the shared school file. **Remove my date** removes your rows for the selected date/range, which may reveal school rules underneath.
 
 Exception-form changes require **Save date**; **Save selections** does not save them, and closing the window does not prompt for an unsaved exception form. Saved exceptions outside the export range remain available for later. Custom minute shifts entered through CSV files are preserved when loading/editing their rows. [Exception file formats](configuration.md#date-exceptions).
+
+### Blank date ranges and hours
+
+Optionally fill **Through date** with an inclusive `YYYY-MM-DD` end date. Leave it blank for one date. Saving or removing applies to the entire range in one save, limited to 3,660 days. Use `off` to blank dates; use `partial` for time filters, or combine them with `use`/`adjust`.
+
+| Control | Meaning |
+| --- | --- |
+| **Blank hours** | A window such as `10:00-11:00`, or comma-separated windows such as `10:00-11:00,14:00-14:30`. |
+| **Morning cutoff** | Blank times before this `HH:MM` boundary. |
+| **Afternoon cutoff** | Blank times from this `HH:MM` boundary onward. |
+| **Overlapping sessions** | `trim` (default) shortens or splits sessions; `remove` drops any session overlapping a blank window. |
+
+For a 09:00–12:00 session with 10:00–11:00 blanked, `trim` produces 09:00–10:00 and 11:00–12:00; `remove` drops the whole session. A session merely touching a window boundary remains unchanged. Both cutoffs can combine: 09:30 and 15:00 keep only time between those boundaries when trimming. The morning cutoff cannot be later than the afternoon cutoff. `24:00` is allowed as an end-of-day boundary.
+
+Times refer to the school clock after pattern changes, duration choices and timing shifts. Click **Save date**, then refresh **Dates & preview** to review the result. [Exception file formats](configuration.md#date-exceptions).
 
 ## Export and replace a file
 
@@ -130,7 +145,7 @@ Import the resulting file through your calendar app's import flow. Exports are s
 
 At the top of the main window, select **SEMESTER**, enter **PROFILE**, and click **Switch / create**. Editing those controls alone does not change the active data.
 
-A new profile gets separate blank selections. When course/club edits are pending, the window asks whether to save, discard or cancel the switch. A completed switch remembers the new profile/semester and resets CAS/club inclusion to off. Recheck dates and inclusion choices, then refresh the preview.
+A new profile gets separate blank selections. When course/club edits are pending, the window asks whether to save, discard or cancel the switch. A completed switch remembers the new profile/semester and resets inclusion to **clubs on, CAS off**. Recheck dates and inclusion choices, then refresh the preview.
 
 Profile names follow the [name and path rules](configuration.md#profiles-and-files). Preserve each profile's `profile.json` when copying data to another machine so event IDs remain stable.
 
@@ -145,7 +160,7 @@ The app refuses a stale save if a file changed after loading. Record any edits y
 | T has no timing choice | Choose **Study hall** or **TOEFL lesson** on Courses, then save. |
 | No exceptions in the selected range | Check **Follows normal weekdays**, or save a date rule inside the range. |
 | A weekend has no normal pattern to adjust | Use `use` with a defined weekday pattern for the makeup day. |
-| No enabled clubs | Name and enable a club slot, and check **Include enabled, named clubs**. |
+| Expected club is missing | Name and enable its slot, check **Include enabled, named clubs**, and review exceptions for its date/time. |
 | Profile/semester must be applied | Click **Switch / create**, then refresh. |
 | Saved file changed externally | Reload CSV and reenter the intended edits. |
 | Timetable definition is invalid | Follow [configuration guidance](configuration.md#a-new-semester), then reopen the GUI. |

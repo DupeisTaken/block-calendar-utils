@@ -98,7 +98,7 @@ def navigation_help(mode, detailed=False):
     if mode == "inspect":
         items = [("--day DATE[:DATE]", "Preview events for a day or inclusive range"), ("--courses", "List block keys, names and enabled state"), ("--activities", "List club IDs, names and times"), ("--semesters", "List timetables; add --show ID to review one"), ("--exceptions", "List school and personal date rules"), ("--validate --day DATE", "Check events without writing a calendar")]
     else:
-        items = [("--courses", "Enter course names; or --set BLOCK NAME"), ("--activities", "Enter club names; or --set ID NAME"), ("--exceptions", "Save --set DATE --off, or --remove DATE"), ("--semesters", "Select with --use ID; create with --new ID"), ("--init", "Create missing blank profile files")]
+        items = [("--courses", "Enter course names; or --set BLOCK NAME"), ("--activities", "Enter club names; or --set ID NAME"), ("--exceptions", "Save closures, blank hours or morning/afternoon cutoffs"), ("--semesters", "Select with --use ID; create with --new ID"), ("--init", "Create missing blank profile files")]
     lines = [heading, "", f"  python -m shbs-calendar --{mode} [target] [options]", ""] + rows(items)
     lines += ["  Add --help or --docs after a target for its arguments.", f"  Example: --{mode} --courses --docs", ""]
     if detailed:
@@ -131,8 +131,7 @@ def translate(mode, tokens):
 
 
 def run_workflow(argv, root):
-    from .cli import command_settings, main, parser
-    from .cli_dates import parse_cli_date
+    from .cli import command_settings, exception_changes, main, parser
     import sys
 
     try:
@@ -167,7 +166,7 @@ def run_workflow(argv, root):
             if args.command in {"export", "preview", "validate"}:
                 command_settings(args)
             elif args.command == "exceptions" and args.action != "list":
-                parse_cli_date(args.date)
+                exception_changes(args)
         for position, (translated, args, mode) in enumerate(prepared, 1):
             status = main(translated, prepared=args)
             if status:

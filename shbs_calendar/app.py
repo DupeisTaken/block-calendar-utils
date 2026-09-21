@@ -55,7 +55,7 @@ class Workspace:
         load_overrides(folder / "exceptions.csv", definition)
         ctx = self.context(profile or settings["profile"], semester_id, create=True)
         ctx.courses()
-        settings.update(profile=ctx.profile, semester=semester_id, active_semester=semester_id, cas=False, clubs=False)
+        settings.update(profile=ctx.profile, semester=semester_id, active_semester=semester_id, cas=False, clubs=True)
         self.save_settings(settings)
         return ctx
 
@@ -143,16 +143,16 @@ class Context:
         # Filters belong to this invocation; never alter saved selections.
         courses = [replace(c, enabled=c.enabled and (not only or c.block in only) and c.block not in exclude) for c in courses]
         activities = []
-        if settings.get("cas") or settings.get("clubs"):
+        if settings.get("cas") or settings.get("clubs", True):
             saved = self.activities()
             if settings.get("cas"):
                 cas = [replace(a, enabled=True) for a in saved if self.semester.activities[a.activity] == "cas"]
                 if not cas:
                     raise CalendarError("This semester has no CAS slots in its activities.csv.")
                 activities += cas
-            if settings.get("clubs"):
+            if settings.get("clubs", True):
                 clubs = [a for a in saved if self.semester.activities[a.activity] == "club" and a.enabled]
-                if not clubs:
+                if not clubs and settings.get("require_clubs", False):
                     raise CalendarError('No enabled clubs are available.\nUse --inspect --activities to find a slot, then --write --activities --set ID "Club name" or --write --activities --enable ID. In the GUI, use CAS & clubs.')
                 activities += clubs
         preview = build_preview(self.semester, courses, self.identity, first, last, 20 if settings.get("late", False) else 0, school, personal, activities=activities)

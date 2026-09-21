@@ -50,6 +50,11 @@ class DayOverride:
     time_shift_minutes: int | None = None
     note: str = ""
     half_day: str = ""
+    # Blank windows use school-clock times after all timetable/shift choices.
+    blank_hours: str = ""
+    morning_cutoff: str = ""
+    afternoon_cutoff: str = ""
+    overlap: str = "trim"
 
 
 @dataclass(frozen=True)

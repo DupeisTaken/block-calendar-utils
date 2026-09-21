@@ -51,12 +51,15 @@
   Saved dates and GUI fields remain ISO `YYYY-MM-DD`.
 - Weeks are Monday–Sunday. Normal times/normal weekdays are CLI defaults, without
   inheriting or changing remembered GUI choices. Late timing shifts by +20 min.
-- CAS and named clubs are opt-in per export. CAS has a fixed title and is never
+- Named enabled clubs default on; CAS remains opt-in per export.
+  `--noclub` and `--nocas` explicitly exclude them. CAS has a fixed title and is never
   prompted for. Block filters affect class/study selections, not opted-in clubs.
 - Date exceptions can replace a weekday pattern, close a day, change timing or
   filter morning/afternoon sessions. Half-day cutoff defaults to 12:30 and uses
   the final session start time after substitutions, timing choices and shifts.
-  Never split a session. Inline rules apply only to this invocation; saved rules
+  Legacy half-day rules keep whole sessions. Explicit blank windows and custom
+  morning/afternoon cutoffs trim/split by default, or remove overlapping sessions
+  with the remove option. Exception dates accept inclusive ranges. Inline rules apply only to this invocation; saved rules
   require `--schedule exceptions`. Personal/inline rows replace earlier rows.
 - This preset: CAS Monday 15:05–16:05; clubs Tuesday 15:45–16:35 and Wednesday
   15:50–16:40. Wednesday T is 15:05–15:45. Thursday T starts 15:45 and ends 16:25
