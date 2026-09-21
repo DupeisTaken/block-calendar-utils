@@ -19,12 +19,15 @@
   --exception, --edit and --import in full. Context flags apply to the whole
   workflow; other options belong to one action. Parse all stages before writing.
   Stop on error/cancellation; completed writes remain saved. Help never executes
-  earlier actions. Inspection must not write or prompt for names.
+  earlier actions. Inspection must not change profiles/settings or prompt for
+  names. Successful dated inspections remember an exact local preview snapshot
+  for --export --last-inspect / -e -l; lists, validation and help do not.
 - Short flags use the long name's first letter, e.g. `--day` / `-d`,
   `--activities` / `-a`. If an initial is already used in that scope, keep the
   secondary option long-only, including collisions with workflow markers. Do not
   invent uppercase or unrelated shortcuts.
-  Keep old script aliases private to the compatibility path where feasible.
+  In exports, -l means --last-inspect and --late is long-only; inspection keeps
+  -l for late timing. Keep old script aliases private to compatibility paths.
 - The friendly CLI layer normalizes input into existing services. Do not add a
   second scheduler or interpret names/file paths as commands. Consume option
   values before looking for command flags. Never silently reinterpret conflicts.

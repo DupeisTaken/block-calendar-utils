@@ -2,12 +2,12 @@
 
 ## Definition → selection → dated export
 
-The public CLI starts with intent: `--inspect` / `-i`, `--write` / `-w`, or `--export` / `-e`. Targets follow the intent. Repeated intents form a sequence, for example `-w --courses -e --day 0920-0924`. Inspect never saves; write owns CSV/setup changes; export writes calendar snapshots. `--gui` opens the separate desktop interface.
+The public CLI starts with intent: `--inspect` / `-i`, `--write` / `-w`, or `--export` / `-e`. Targets follow the intent. Repeated intents form a sequence, for example `-w --courses -e --day 0920-0924`. Inspect leaves profiles/settings unchanged and remembers successful dated previews in a separate local snapshot; write owns CSV/setup changes; export writes calendars. `--gui` opens the separate desktop interface.
 
 1. **Define the school timetable.** `--write --semesters --new` creates independent shared files. A blank timetable is a draft; an imported or copied timetable is validated before its folder is installed. Block names/counts, intervals, weekday patterns and duration options are data, not CLI constants.
 2. **Choose a valid definition.** `--write --semesters --use` validates and remembers a semester, then creates missing student files. A whole-workflow `--semester` also requires a valid definition. Neither path invents missing block arrangements. The GUI presents a review screen when no selection exists. Selecting a new semester creates blank courses, not guessed mappings from the old one.
 3. **Name selected blocks and clubs.** Commands, the GUI and CSV edits use the same profile/semester files. Named study periods are normal selections. `--write --courses --edit` and `--write --activities --edit` collect names and save each batch once; `--write --activities` starts club-name entry. Club slots keep their semester-defined times. Other actions accept arguments and exit. Existing files and profile UUIDs survive activation and upgrades.
-4. **Choose dates and selections for this invocation.** Inclusive endpoints or explicit week presets are required. `--only`/`--exclude` filter saved class selections without modifying them. Named enabled clubs default on; CAS defaults off. `--noclub` and `--nocas` explicitly exclude activities. Normal weekday scheduling and normal timing are independent defaults. Inline `--exception DATE[:DATE] RULE` types compose by date; saved rules apply only with `--schedule exceptions`. Terminal exports never inherit or change GUI range/timing preferences.
+4. **Choose dates and selections for this invocation.** New previews and direct exports require inclusive endpoints or explicit week presets. `--export --last-inspect` instead selects a remembered preview. `--only`/`--exclude` filter saved class selections without modifying them. Named enabled clubs default on; CAS defaults off. `--noclub` and `--nocas` explicitly exclude activities. Normal weekday scheduling and normal timing are independent defaults. Inline `--exception DATE[:DATE] RULE` types compose by date; saved rules apply only with `--schedule exceptions`. Terminal exports never inherit or change GUI range/timing preferences.
 5. **Preview or export through shared services.** Resolve the actual date to a pattern, apply course duration choices, apply the date's effective shift, then remove whole sessions with the half-day filter (default cutoff 12:30). Explicit blank windows and custom morning/afternoon cutoffs then trim sessions (possibly splitting them), or remove overlapping sessions. Activities follow the same resolution. Preview and export use the same computed events. Terminal previews arrange days in width-aware columns; calendar serialization remains independent of presentation.
 
 ## Code and data ownership
@@ -26,12 +26,14 @@ The public CLI starts with intent: `--inspect` / `-i`, `--write` / `-w`, or `--e
 | `exception_times.py` | Validate and merge blank windows; trim/split intervals or remove overlaps |
 | `terminal.py` | Wrap and align side-by-side day previews, including wide Unicode text |
 | `app.py` | Workspace selection, profile initialization, preview/export services |
+| `inspection.py` | Store/validate resolved CLI preview snapshots, isolated by root, profile and semester |
 | `storage.py` | Validate JSON/CSV, stable file paths, atomic saves and conflicting-edit checks |
 | `schedule.py` | Date ranges, pattern resolution, exceptions, options, overlap checks, event identity |
 | `ical.py` | Serialize computed events; no UI or semester-specific rules |
 | `semesters/<id>/` | Shared school definition and school exceptions; may be versioned |
 | `local/profiles/<name>/<id>/` | Course/club selections and personal exceptions; gitignored |
 | `local/settings.json` | Active semester/profile and GUI preferences; gitignored |
+| `local/inspections/<profile>/<semester>/preview.json` | Last successful dated CLI preview; gitignored and independent of GUI preferences |
 | `exports/` | Calendar snapshots; gitignored |
 
 No runtime third-party dependencies are introduced. Tkinter is imported only when opening the GUI. A change to semester files is revalidated on the next CLI command; reopen the GUI after editing them.
@@ -56,6 +58,7 @@ No runtime third-party dependencies are introduced. Tkinter is imported only whe
 - Optional activity files do not add academic blocks or change existing student CSVs. Missing activity files mean none are defined/selected. CAS uses a fixed title; named clubs use their own profile CSV. Semester copies include school activity slots but exclude student names. Activation and profile switches reset GUI inclusion to clubs on and CAS off. Previously remembered choices are restored when reopening the GUI.
 - Save validation and fingerprint checks precede atomic replacement. Course input cancellation discards the unsaved batch. Imports can repair a malformed course file while retaining its previous bytes as a backup.
 - Empty previews are valid information; exporting an empty calendar through the application is rejected with guidance.
+- Successful dated CLI previews atomically remember resolved occurrences after display. `--export --last-inspect` (`-e -l`) reloads these events without invoking the scheduler, fixing relative dates and preserving reviewed values through later source edits. Snapshots are scoped by root/profile/semester and checked against the profile UUID. Empty previews replace prior snapshots; failed previews, lists, help and validation do not. This intentional inspection cache is separate from profile CSVs and GUI settings. `--last-inspect` rejects date/event modifiers and permits destination/overwrite choices; explicit-date exports continue to compute current events independently.
 - Default export names include profile, semester and inclusive endpoints, so different selections/rules for the same dates still collide. CLI replacement requires `--overwrite` on that invocation; GUI replacement uses the native save dialog. Replacement writes a complete snapshot without an export backup. Explicit relative output paths use the process working directory, independently of the data root.
 
 Calendar-client behavior is a separate integration concern. The interaction rework preserves the serializer; Outlook drag-in behavior still needs a client-level reproduction.

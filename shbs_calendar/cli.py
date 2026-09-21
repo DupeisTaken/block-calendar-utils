@@ -208,6 +208,8 @@ def parser():
         dates.add_argument("--week", "-w", metavar="DATE", help="Any date in the first Monday–Sunday week, e.g. 9.14")
         dates.add_argument("--this-week", "-t", action="store_true", help="Current Monday–Sunday")
         dates.add_argument("--next-week", "-x", action="store_true", help="Next Monday–Sunday")
+        if command == "export":
+            dates.add_argument("--last-inspect", action="store_true", help="Export the exact last dated inspection for this profile and semester")
         sub.add_argument("--last-date", "--end", "-u", dest="end", metavar="DATE", help="Last inclusive date; also supply --first-date")
         sub.add_argument("--weeks", "-n", type=int, metavar="COUNT", help="1–520 consecutive weeks; only with --week, --this-week or --next-week")
         sub.add_argument("--schedule", "-S", choices=["weekdays", "exceptions"], help="weekdays ignores exceptions; exceptions applies saved files as well as inline rules")
@@ -215,7 +217,7 @@ def parser():
         sub.add_argument("--only", "-i", action="append", default=[], metavar="BLOCKS", help="Only these saved selections, e.g. B or B,T; repeatable")
         sub.add_argument("--exclude", "-X", action="append", default=[], metavar="BLOCKS", help="Omit these blocks for this export, e.g. A or A,T; repeatable")
         cas = sub.add_mutually_exclusive_group()
-        cas.add_argument("--cas", "-c", action="store_true", help="Include CAS with its fixed title (default: off)")
+        cas.add_argument("--cas", "-c", action="store_true", default=None, help="Include CAS with its fixed title (default: off)")
         cas.add_argument("--nocas", dest="cas", action="store_false", help="Exclude CAS (default)")
         clubs = sub.add_mutually_exclusive_group()
         clubs.add_argument("--clubs", "-C", action="store_true", default=None, help="Include enabled, named clubs (default: on)")
@@ -263,11 +265,19 @@ def arguments(argv, root=None):
 
 def command_settings(args, settings=None, *, today=None):
     """Exports never inherit stale GUI dates, lateness or exception choices."""
+    if getattr(args, "last_inspect", False):
+        # A reviewed snapshot can choose a destination, but cannot silently be
+        # reshaped by export options. Inspect again to change dates or events.
+        if (args.end is not None or args.weeks is not None or args.schedule is not None
+                or args.exception or args.only or args.exclude or args.cas is not None
+                or args.clubs is not None or args.late or args.normal):
+            raise CalendarError("--last-inspect cannot combine with date, timing, activity or event filters.\nInspect the revised options first; only --output and --overwrite can change the saved export.")
+        return {"last_inspect": True}
     mode = args.schedule or ("inline" if args.exception else "weekdays")
     if args.exception and mode == "weekdays":
         raise CalendarError("--schedule weekdays ignores exceptions. Omit it when using --exception.")
     today = today or date.today()
-    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=mode, only=args.only, exclude=args.exclude, cas=args.cas, clubs=args.clubs is not False, require_clubs=args.clubs is True)
+    result = dict(mode="this", anchor="", end="", weeks=1, late=args.late, schedule_mode=mode, only=args.only, exclude=args.exclude, cas=bool(args.cas), clubs=args.clubs is not False, require_clubs=args.clubs is True)
     if (args.start is None) != (args.end is None):
         raise CalendarError("Provide --first-date and --last-date together, or use --day DATE / --day-range FIRST:LAST.")
     if args.day is not None:
@@ -547,17 +557,27 @@ def main(argv=None, *, prepared=None):
         elif args.command == "activities":
             activity_command(args, ctx)
         else:
-            preview = ctx.preview(export_settings)
+            from .inspection import load_inspection, remember_inspection
+            last_inspect = export_settings.get("last_inspect", False)
+            if last_inspect:
+                preview, inspected_at = load_inspection(ctx)
+            else:
+                preview = ctx.preview(export_settings)
             if args.command == "preview":
                 width = args.width if args.width is not None else max(20, min(300, shutil.get_terminal_size((120, 24)).columns))
                 emit(preview_text(preview, width=width if args.layout == "columns" else None))
+                remember_inspection(ctx, preview)
+                emit("\n  Export this preview: --export --last-inspect / -e -l")
             elif args.command == "validate":
                 emit(f"Valid: {len(preview.events)} events, {preview.start} to {preview.end}, {preview.clock}")
             else:
                 if not preview.events:
+                    if last_inspect:
+                        raise CalendarError("The last inspection has no events to export.\nRun --inspect with dates and selections that contain events first.")
                     raise CalendarError("No events in this range.\nUse --inspect --courses and --inspect --day FIRST:LAST to check selections and dates. For clubs, inspect --activities and check that --noclub is absent.")
                 output = ctx.export(preview, args.output, overwrite=args.overwrite)
-                emit(f"Exported {len(preview.events)} events · {preview.start} to {preview.end} · {preview.clock}\n{output}")
+                source = f"\nLast inspection: {ctx.profile} / {ctx.semester.id} · {inspected_at:%Y-%m-%d %H:%M} UTC" if last_inspect else ""
+                emit(f"Exported {len(preview.events)} events · {preview.start} to {preview.end} · {preview.clock}{source}\n{output}")
         return 0
     except (CalendarError, OSError, ImportError, ValueError) as exc:
         path = [args.command] + ([args.action] if getattr(args, "action", None) else [])

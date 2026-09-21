@@ -35,13 +35,13 @@ def capture(syntax=False, entry=False, help_page=None, workflow=False):
                 # Exercise the real sequence and recovery using only this
                 # temporary profile. Each screenshot owns one short-lived window.
                 flags = ["-r", str(workspace.root)]
-                print('python -m shbs-calendar -w --courses --set A "Mathematics" -e --day 0920-0924\n')
-                assert main(flags + ["-w", "--courses", "--set", "A", "Mathematics", "-e", "--day", "0920-0924"]) == 0
-                print('\npython -m shbs-calendar -e --day 0920-0924\n')
+                print('python -m shbs-calendar -i --day 2026-09-18 --late -e -l\n')
+                assert main(flags + ["-i", "--day", "2026-09-18", "--late", "-e", "-l"]) == 0
+                print('\npython -m shbs-calendar -e --last-inspect\n')
                 with redirect_stderr(output):
-                    assert main(flags + ["-e", "--day", "0920-0924"]) == 2
-                print('\npython -m shbs-calendar -e --day 0920-0924 --overwrite\n')
-                assert main(flags + ["-e", "--day", "0920-0924", "--overwrite"]) == 0
+                    assert main(flags + ["-e", "--last-inspect"]) == 2
+                print('\npython -m shbs-calendar -e -l --overwrite\n')
+                assert main(flags + ["-e", "-l", "--overwrite"]) == 0
             elif help_page:
                 # Emulate an ANSI-capable terminal, then render the exact output
                 # below with Tk tags. No native console or user data is changed.

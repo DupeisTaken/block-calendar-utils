@@ -12,7 +12,7 @@ Start with an intent, then its target and options:
 
 | Intent | Form | Effect |
 | --- | --- | --- |
-| Inspect | `--inspect` / `-i` | Read saved entries or compute a preview without writing files |
+| Inspect | `--inspect` / `-i` | Read saved entries or compute a preview; dated previews remember a local snapshot |
 | Write | `--write` / `-w` | Save names, selections, rules or semester setup |
 | Export | `--export` / `-e` | Write an `.ics` snapshot |
 
@@ -20,20 +20,20 @@ Start with an intent, then its target and options:
 python -m shbs-calendar -i --courses
 python -m shbs-calendar -w --courses
 python -m shbs-calendar -e --day 0920-0924
-python -m shbs-calendar -w --courses -i --day 0920-0924 -e --day 0920-0924
+python -m shbs-calendar -w --courses -i --day 0920-0924 -e -l
 ```
 
 A new intent starts a new action. Actions run left to right. Repeat `-w` to write more than one target. Each write saves once before the next action; later actions read the saved result. Syntax and date input for the whole workflow are checked before any prompt or save. File contents and scheduling are validated when each action runs, after earlier writes have completed.
 
 An error or Ctrl+C/EOF stops subsequent actions. Completed saves remain saved; the workflow is not a transaction. A preview displays events and continues without a confirmation prompt. To review before exporting, run inspection and export separately. After a failed export following a successful write, retry only the export.
 
-`--root PATH`, `--profile NAME` and `--semester ID` apply to the entire workflow wherever they appear. Conflicting values are rejected. Other options apply only to their action: repeat dates, activity overrides, filters and exception rules for both preview and export.
+`--root PATH`, `--profile NAME` and `--semester ID` apply to the entire workflow wherever they appear. Conflicting values are rejected. Other options apply only to their action. Use `-e --last-inspect` to export the exact previous preview; for an independent export with explicit dates, repeat its dates, activity choices and rules.
 
 ```sh
 python -m shbs-calendar --profile student -w --courses --set A "Mathematics" -w --activities --set club-tue "Chess Club" -e --day 9.14:9.18 --clubs
 ```
 
-`-i`, `-w` and `-e` always start workflow actions. Use `--week`, `--exception`, `--edit` and `--import` in full. Other short flags use the first letter within their scope; colliding secondary options stay long-only. For example, `-d` means `--day` in an export, but `--disable` in a course-write action. `--profile`, `--semester`, `--clubs`, `--noclub`, `--nocas`, `--only`, `--exclude`, `--overwrite` and `--docs` are long-only.
+`-i`, `-w` and `-e` always start workflow actions. Use `--week`, `--exception`, `--edit` and `--import` in full. Other short flags use the first letter within their scope; colliding secondary options stay long-only. For example, `-d` means `--day` in an export, but `--disable` in a course-write action. In exports, `-l` means `--last-inspect`; use `--late` for lateness. In inspection, `-l` still means `--late`. `--profile`, `--semester`, `--clubs`, `--noclub`, `--nocas`, `--only`, `--exclude`, `--overwrite` and `--docs` are long-only.
 
 Use `--` before literal positional values that start with a dash, for example `-w --courses --set -- A "--export"`. Everything after `--` is literal, so put that action last or run it separately. Option values starting with a dash can use `=`, for example `--room=--write`. Ordinary names and paths are never interpreted as actions.
 
@@ -83,6 +83,35 @@ Course import validates and replaces all course selections from the supplied CSV
 
 ## Export and overwrite
 
+### Export the last inspection
+
+The usual workflow is inspect, review, then export the remembered preview:
+
+```sh
+python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --late --cas --exception 2026-09-18 no-afternoon
+python -m shbs-calendar -e --last-inspect
+```
+
+`-e -l` is the short form. A combined command also works:
+
+```sh
+python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --noclub -e -l
+python -m shbs-calendar -e -l --output "exports/reviewed.ics"
+python -m shbs-calendar -e -l --overwrite
+```
+
+The snapshot contains the exact reviewed dates, titles, rooms, UIDs and times, including activity choices, block filters and resolved exceptions. Relative weeks are fixed at inspection time. Later edits to source files do not alter it; inspect again to include new changes. Only the export destination and overwrite option can vary. Combining `--last-inspect` with dates, timing, activities or event filters is an error.
+
+Each data root/profile/semester has its own last inspection. Use the same `--root`, `--profile` and `--semester` context on separate commands when you supplied overrides. Lists, help, validation, exports and failed inspections leave the remembered preview unchanged. An empty dated preview replaces it, but cannot be exported. Missing or invalid snapshots require a fresh dated inspection. GUI previews do not update this CLI snapshot.
+
+The snapshot is stored under `local/inspections/`; inspecting still leaves your course/club/exception files and GUI preferences unchanged. A combined command does not pause between preview and export; use separate commands to review before exporting.
+
+**Shortcut change:** in Export, `-l` now means `--last-inspect`; write `--late` for late timing on an explicit-date export. In Inspect/Validate, `-l` remains `--late`.
+
+### Export with explicit dates
+
+Direct exports remain available and use current saved data with their own options:
+
 ```sh
 python -m shbs-calendar -e --day 9.18
 python -m shbs-calendar -e --day 9.14:9.18 --clubs --cas
@@ -103,7 +132,7 @@ Keep the failed export's other options when retrying. `--overwrite` applies only
 
 ## Dates and selections
 
-Preview, validation and export share these options:
+Preview, validation and exports with explicit dates share these options. They cannot be combined with `--last-inspect`:
 
 | Option | Meaning |
 | --- | --- |

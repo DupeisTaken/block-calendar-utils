@@ -70,10 +70,10 @@ Choose your actual dates; this example uses September 20–24 of the computer's 
 
 ```sh
 python -m shbs-calendar -i --day 0920-0924
-python -m shbs-calendar -e --day 0920-0924
+python -m shbs-calendar -e --last-inspect
 ```
 
-Preview first, check the titles and times, then run export. Named enabled clubs are included by default. Add `--noclub` to exclude them, or `--cas` to include CAS, on **both** commands. CAS stays off by default; `--nocas` explicitly excludes it. Normal weekday patterns and normal timing are the terminal defaults. [Date formats, makeup days and closures](commands.md#dates-and-selections).
+Preview first, check the titles and times, then use `-e --last-inspect` (or `-e -l`). This exports the exact inspected dates and events. Named enabled clubs are included by default. Add `--noclub` to exclude them, or `--cas` to include CAS, on the **inspection** command. CAS stays off by default; `--nocas` explicitly excludes it. Normal weekday patterns and normal timing are the terminal defaults. [Date formats, makeup days and closures](commands.md#dates-and-selections).
 
 For a closure, appointment or shorter day, [blank dates/hours or set morning and afternoon cutoffs](commands.md#blank-dates-and-hours). Preview with the same rules before exporting; choose whether overlapping sessions should be trimmed or removed.
 
@@ -82,8 +82,8 @@ The command reports the calendar's path under `exports/`. An empty preview is va
 If the destination already exists, keep the export's options and append `--overwrite` to replace it, or choose an unused path:
 
 ```sh
-python -m shbs-calendar -e --day 0920-0924 --overwrite
-python -m shbs-calendar -e --day 0920-0924 --output "exports/revised-week.ics"
+python -m shbs-calendar -e --last-inspect --overwrite
+python -m shbs-calendar -e --last-inspect --output "exports/revised-week.ics"
 ```
 
 `--overwrite` replaces the whole file immediately, without a prompt or export backup. [Export reference](command-catalogue.md#export).

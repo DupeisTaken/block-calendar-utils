@@ -86,6 +86,8 @@ Click **Refresh preview**, then check titles, dates, local times and the event c
 
 An empty preview is valid. Check enabled names, activity inclusion, date range and closures if you expected events. Terminal exports have their own normal-time/weekday defaults and do not inherit GUI preferences.
 
+The terminal's `--export --last-inspect` reuses only a dated CLI inspection. GUI preview/export continues to use the current GUI controls and does not replace that remembered CLI snapshot.
+
 ## Exceptions
 
 Use **03 Exceptions** to save closures, makeup days, timing changes or time filters. The table labels each row **School** or **Yours**, with time filters and notes under **Details**. Your row replaces the school's entire rule on the same date.

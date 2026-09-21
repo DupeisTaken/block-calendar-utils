@@ -156,16 +156,156 @@ class CLITests(unittest.TestCase):
         self.ok("-e", "--day", "0918", "--output", str(output), "--overwrite")
         self.assertIn(b"Saved before failure", output.read_bytes())
 
-    def test_workflow_inspection_is_read_only_and_options_do_not_leak(self):
+    def test_workflow_inspection_only_remembers_preview_and_options_do_not_leak(self):
         self.init()
         before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
         self.ok("-i", "--courses", "-i", "--activities", "-i", "--semesters", "-i", "--exceptions",
                 "-i", "--day", "0918", "--late", "-i", "--validate", "--day", "0918")
-        after = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file()}
+        after = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob("*") if p.is_file() and self.workspace.local / "inspections" not in p.parents}
         self.assertEqual(before, after)
         output = self.root / "normal.ics"
         self.ok("-i", "--day", "0918", "--late", "-e", "--day", "0918", "--output", str(output))
         self.assertIn(b"DTSTART:20260918T023000Z", output.read_bytes())
+
+    def test_export_last_inspection_separate_commands_keeps_reviewed_events(self):
+        from shbs_calendar.inspection import inspection_path, load_inspection
+        ctx = self.init()
+        self.ok("-w", "--courses", "--set", "A", "数学课程")
+        settings = self.workspace.settings_path.read_bytes()
+        self.ok("-i", "--day", "2026-09-18", "--exception", "2026-09-18", "blank=11:00-11:10", "--late", "--noclub")
+        saved, _ = load_inspection(ctx)
+        self.assertEqual(len(saved.events), 2)
+        original = inspection_path(ctx).read_bytes()
+        self.ok("-w", "--courses", "--set", "A", "Changed after inspection")
+        output = self.root / "last.ics"
+        result = self.ok("-e", "--last-inspect", "--output", str(output))
+        self.assertIn("Last inspection: student / 2026-27-s1", result.stdout)
+        data = output.read_text(encoding="utf-8")
+        self.assertEqual(data.count("SUMMARY:数学课程"), 2)
+        self.assertNotIn("Changed after inspection", data)
+        self.assertIn("DTSTART:20260918T025000Z", data)
+        self.assertIn("DTEND:20260918T041000Z", data)
+        self.assertTrue(all(e.uid in data for e in saved.events))
+        self.assertEqual(inspection_path(ctx).read_bytes(), original)
+        self.assertEqual(self.workspace.settings_path.read_bytes(), settings)
+        self.assertEqual(self.run_cli("-e", "-l", "--output", str(output)).returncode, 2)
+        self.ok("-e", "-l", "--output", str(output), "--overwrite")
+
+    def test_export_last_inspection_combined_and_late_shortcuts(self):
+        self.init()
+        output = self.root / "stacked-last.ics"
+        self.ok("-i", "--day", "2026-09-18", "-l", "-e", "-l", "--output", str(output))
+        self.assertIn("DTSTART:20260918T025000Z", output.read_text())
+        # An explicit-date export still builds events independently of inspection.
+        self.ok("-e", "--day", "2026-09-18", "--output", str(output), "--overwrite")
+        self.assertIn("DTSTART:20260918T023000Z", output.read_text())
+        self.ok("-e", "--day", "2026-09-18", "--late", "--output", str(output), "--overwrite")
+        self.assertIn("DTSTART:20260918T025000Z", output.read_text())
+
+    def test_last_inspection_preserves_activities_and_never_resolves_relative_dates_again(self):
+        from shbs_calendar.inspection import load_inspection
+        ctx = self.init()
+        self.ok("-w", "--activities", "--set", "club-tue", "Chess")
+        self.ok("-i", "--next-week", "--cas", "--only", "C")
+        preview, _ = load_inspection(ctx)
+        self.assertEqual([event.title for event in preview.events], ["CAS", "Chess"])
+        self.ok("-w", "--activities", "--disable", "club-tue")
+        output = self.root / "fixed-week.ics"
+        with patch("shbs_calendar.app.Context.preview", side_effect=AssertionError("Must export the reviewed snapshot")):
+            self.ok("-e", "--last-inspect", "--output", str(output))
+        data = output.read_text()
+        self.assertIn("SUMMARY:Chess", data)
+        self.assertIn("SUMMARY:CAS", data)
+        self.assertTrue(all(event.uid in data for event in preview.events))
+
+    def test_last_inspection_snapshot_save_failure_is_reported(self):
+        from shbs_calendar.inspection import inspection_path
+        from shbs_calendar.models import CalendarError
+        ctx = self.init()
+        self.ok("-i", "--day", "2026-09-18")
+        original = inspection_path(ctx).read_bytes()
+        with patch("shbs_calendar.inspection.write_json", side_effect=CalendarError("Cannot remember inspection")):
+            result = self.run_cli("-i", "--day", "2026-09-17", "-e", "--last-inspect")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("Cannot remember inspection", result.stderr)
+        self.assertEqual(inspection_path(ctx).read_bytes(), original)
+        self.assertFalse((self.root / "exports").exists())
+
+    def test_only_successful_dated_inspection_replaces_snapshot(self):
+        from shbs_calendar.inspection import inspection_path
+        ctx = self.init()
+        self.assertEqual(self.run_cli("-e", "--last-inspect").returncode, 2)
+        self.ok("-i", "--day", "2026-09-18")
+        path = inspection_path(ctx)
+        original = path.read_bytes()
+        self.ok("-i", "--courses", "-i", "--activities", "-i", "--exceptions", "-i", "--validate", "--day", "2026-09-17")
+        self.ok("-i", "--day", "2026-09-17", "-e", "--last-inspect", "--help")
+        self.assertEqual(self.run_cli("-i", "--day", "2026-09-17", "--width", "1").returncode, 2)
+        self.assertEqual(path.read_bytes(), original)
+        self.ok("-i", "--day", "2026-09-19")
+        result = self.run_cli("-e", "--last-inspect")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("no events", result.stderr)
+        self.assertFalse((self.root / "exports").exists())
+
+    def test_last_inspection_rejects_filters_before_earlier_writes(self):
+        ctx = self.init()
+        original = ctx.courses_path.read_bytes()
+        for flags in (("--day", "0918"), ("--week", "0918"), ("--next-week",), ("--last-date", "0918"),
+                      ("--weeks", "2"), ("--late",), ("--normal",), ("--cas",), ("--nocas",),
+                      ("--clubs",), ("--noclub",), ("--only", "A"), ("--exclude", "T"),
+                      ("--schedule", "weekdays"), ("--exception", "0918", "off")):
+            with self.subTest(flags=flags):
+                result = self.run_cli("-w", "--courses", "--set", "A", "Must not save", "-e", "--last-inspect", *flags)
+                self.assertEqual(result.returncode, 2)
+                self.assertEqual(ctx.courses_path.read_bytes(), original)
+
+    def test_last_inspection_is_scoped_by_profile_semester_and_identity(self):
+        from shbs_calendar.inspection import inspection_path
+        ctx = self.init()
+        self.ok("-i", "--day", "2026-09-18")
+        self.ok("--profile", "other", "-w", "--init")
+        self.assertEqual(self.run_cli("--profile", "other", "-e", "--last-inspect").returncode, 2)
+        self.ok("-w", "--semesters", "--new", "next", "--copy", "2026-27-s1")
+        self.ok("--semester", "next", "-w", "--init")
+        self.assertEqual(self.run_cli("--semester", "next", "-e", "--last-inspect").returncode, 2)
+        record = json.loads(inspection_path(ctx).read_text())
+        record["identity"] = "different-profile-id"
+        inspection_path(ctx).write_text(json.dumps(record))
+        result = self.run_cli("-e", "--last-inspect")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("different profile", result.stderr)
+
+    def test_last_inspection_corruption_is_actionable_and_never_exports(self):
+        from shbs_calendar.inspection import inspection_path, load_inspection
+        ctx = self.init()
+        self.ok("-i", "--day", "2026-09-18")
+        path = inspection_path(ctx)
+        record = json.loads(path.read_text())
+        # The displayed source time is UTC even if an aware saved timestamp
+        # uses another offset.
+        path.write_text(json.dumps(record | {"inspected_at": "2026-09-21T08:15:00+08:00"}))
+        self.assertEqual(load_inspection(ctx)[1].isoformat(), "2026-09-21T00:15:00+00:00")
+        broken_event = dict(record["preview"]["events"][0], start="2026-09-18T10:30:00")
+        for text in ("broken", "{}", json.dumps(record | {"version": 42}),
+                     json.dumps(record | {"preview": record["preview"] | {"events": [broken_event]}})):
+            with self.subTest(text=text):
+                path.write_text(text)
+                result = self.run_cli("-e", "--last-inspect")
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("Run --inspect", result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertFalse((self.root / "exports").exists())
+
+    def test_last_inspection_survives_real_process_boundary(self):
+        self.init()
+        base = [sys.executable, "-m", "shbs-calendar", "--root", str(self.root)]
+        result = subprocess.run(base + ["-i", "--day", "2026-09-18", "--late"], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = self.root / "other-process.ics"
+        result = subprocess.run(base + ["-e", "-l", "--output", str(output)], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("DTSTART:20260918T025000Z", output.read_text())
 
     def test_workflow_literal_values_and_shared_context_are_not_actions(self):
         self.init()

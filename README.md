@@ -16,12 +16,12 @@ Run from this folder; on macOS use `python3`:
 
 ```sh
 python -m shbs-calendar -i --day 0920-0924
-python -m shbs-calendar -e --day 0920-0924
+python -m shbs-calendar -e --last-inspect
 ```
 
-`-i` inspects, `-w` writes names/rules, and `-e` exports. `0920-0924` means September 20–24 of the current year. Learn to [stack actions](docs/commands.md#navigation-and-sequential-actions) or [choose other dates](docs/commands.md#dates-and-selections).
+`-i` inspects, `-w` writes names/rules, and `-e` exports. After reviewing a dated inspection, use `-e --last-inspect` (short: **`-e -l`**) to export exactly those events. It works across separate commands; `-i --day 0920-0924 -e -l` also works in one command. [Last-inspection details](docs/commands.md#export-the-last-inspection). `0920-0924` means September 20–24 of the current year. Learn to [stack actions](docs/commands.md#navigation-and-sequential-actions) or [choose other dates](docs/commands.md#dates-and-selections).
 
-Named enabled clubs are included by default; use `--noclub` to exclude them. CAS stays off unless you add `--cas`; `--nocas` explicitly excludes it. [Blank dates or hours and set morning/afternoon cutoffs](docs/commands.md#blank-dates-and-hours), with a choice to trim or remove overlapping sessions.
+Named enabled clubs are included by default; add `--noclub` to the inspection to exclude them. CAS stays off unless you add `--cas`; `--nocas` explicitly excludes it. [Blank dates or hours and set morning/afternoon cutoffs](docs/commands.md#blank-dates-and-hours), with a choice to trim or remove overlapping sessions.
 
 If the export already exists, append **`--overwrite`** to that export action, or choose a new file with `--output "exports/revised.ics"`. [Replacement details](docs/command-catalogue.md#export).
 

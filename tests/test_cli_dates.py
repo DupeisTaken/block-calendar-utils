@@ -78,8 +78,9 @@ class CLIDateTests(unittest.TestCase):
                     self.assertEqual(short, "-" + long[2])
                     self.assertNotIn(short, used)
                     used.add(short)
-        for flag in ("--weeks", "--clubs", "--exclude", "--normal", "--only"):
+        for flag in ("--weeks", "--clubs", "--exclude", "--normal", "--only", "--late"):
             self.assertIsNone(EXPORT_OPTIONS[flag])
+        self.assertEqual(EXPORT_OPTIONS["--last-inspect"], "-l")
         self.assertIsNone(COMMON["--profile"])
 
     def test_public_shortcut_scopes_resolve_to_the_same_handlers(self):

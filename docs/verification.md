@@ -1,5 +1,13 @@
 # Verification record
 
+## Export the last inspection — 2026-09-21
+
+Added `--export --last-inspect` / `-e -l` for both separate commands and combined inspect/export workflows. Successful dated CLI inspections remember exact resolved events in a separate local snapshot; profile CSVs and GUI settings remain unchanged. Export's `--late` is now long-only; Inspect/Validate retain `-l` for lateness.
+
+**146 tests passed** with `SHBS_GUI_TESTS=1` using `.venv-verify/Scripts/python.exe -m unittest discover`. Coverage includes actual separate processes, combined workflows, Unicode and split-event UIDs, timing and activity preservation after source edits, fixed relative dates, profile/semester/UUID isolation, empty and damaged snapshots, failed snapshot saves, overwrite handling, help without execution, and conflicting options rejected before earlier writes. Shortcut and help checks cover the new scope of `-l`; documentation commands, links and anchors also pass.
+
+Reviewed `local/qa/terminal-workflow.png` and `local/qa/help-export.png`, captured with `tools/verify_preview.py --workflow` and `--help-page export`. Each used one temporary QA window and synthetic data; windows closed automatically. `git diff --check` passed. Bytecode generation was disabled; no personal profile files were changed. Calendar-client reimports remain unverified.
+
 ## Exception demonstration block — 2026-09-21
 
 Added an exception-type comparison under Write in the command catalogue: 11 types with saved options, inline equivalents and their effects, plus complete closure, makeup-day/cutoff and one-off gap examples. Validated all 11 table examples with the real parser/override validator; the 10 available saved/inline pairs produce identical rules. **136 tests passed** with native GUI checks enabled, including documentation command/link checks. `git diff --check` passed. Only documentation changed; no personal files were touched.

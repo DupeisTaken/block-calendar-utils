@@ -22,6 +22,16 @@ class TerminalStream(io.StringIO):
 
 
 class HelpStyleTests(unittest.TestCase):
+    def test_last_inspection_help_scopes_the_l_shortcut(self):
+        from shbs_calendar.cli_interface import render_help
+        cli = parser()
+        export = render_help(help_parser(cli, ["export"]), detailed=True)
+        preview = render_help(help_parser(cli, ["preview"]), detailed=True)
+        self.assertIn("--last-inspect / -l", export)
+        self.assertNotIn("--late / -l", export)
+        self.assertIn("--late / -l", preview)
+        self.assertNotIn("--last-inspect", preview)
+
     def test_exception_entry_help_exposes_time_filters_without_writes(self):
         # Both entry routes must explain how to save filters without requiring
         # a selected semester, opening prompts or creating a profile.
@@ -65,7 +75,8 @@ class HelpStyleTests(unittest.TestCase):
             export = render_help(help_parser(cli, ["export"]), detailed=detailed)
             self.assertIn("--overwrite", export)
             self.assertIn("same export command", " ".join(export.split()))
-            self.assertIn("Supply dates:", export)
+            self.assertIn("Export a reviewed preview: --last-inspect / -l.", export)
+            self.assertIn("Or supply dates:", export)
             self.assertNotIn("--layout", export)
         root_docs = render_help(cli, detailed=True)
         self.assertIn("Open the desktop interface", root_docs)
