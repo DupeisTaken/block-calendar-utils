@@ -41,7 +41,7 @@ def help_parser(root, topics):
     for topic in topics:
         children = next((a.choices for a in current._actions if isinstance(a, argparse._SubParsersAction)), {})
         if topic not in children:
-            raise CalendarError(f"Unknown help topic {topic!r}. Run python -m shbs-calendar {public_path(path_of(current))} --help for available commands.")
+            raise CalendarError(f"Unknown help topic {topic!r}. Run python -m bcalendar-utils {public_path(path_of(current))} --help for available commands.")
         current = children[topic]
     return current
 
@@ -119,7 +119,7 @@ def parser():
     common.add_argument("--profile", "-p", metavar="NAME", default=argparse.SUPPRESS, help="Student profile (default: active profile or me)")
     common.add_argument("--semester", "-s", metavar="ID", default=argparse.SUPPRESS, help="Use this defined semester for this command")
     common.add_argument("--docs", action=DocumentationAction, nargs=0, default=argparse.SUPPRESS, help="Read complete documentation for this action")
-    result = FriendlyParser(prog="python -m shbs-calendar", parents=[common],
+    result = FriendlyParser(prog="python -m bcalendar-utils", parents=[common],
         description="Define a timetable, name your courses, export selected dates.",
         usage="%(prog)s [COMMAND] [OPTIONS]")
     subs = result.add_subparsers(dest="command")
@@ -170,7 +170,7 @@ def parser():
     edit = add_command(actions, "edit", parents=[common], help="Prompt for club names, then save once (default)")
     edit.add_argument("ids", nargs="*", help="Only these club slots (default: all clubs)")
     sub = add_command(actions, "set", parents=[common], help="Save a club name for a slot",
-        epilog='Example: python -m shbs-calendar --write --activities --set club-tue "Chess Club" --room Library')
+        epilog='Example: python -m bcalendar-utils --write --activities --set club-tue "Chess Club" --room Library')
     sub.add_argument("id", help="Club slot ID from --inspect --activities")
     sub.add_argument("name", help="Club name")
     sub.add_argument("--room", "-R", help="Room or location")

@@ -194,19 +194,19 @@ def render_help(parser, detailed=False):
     path = path_of(parser)
     mode = getattr(parser, "navigation_mode", None)
     command = public_path(path, mode)
-    heading = "SHBS Calendar" + (" / " + " / ".join(p.lstrip("-").title() for p in command.split()) if path else "")
+    heading = "Block Calendar Utils" + (" / " + " / ".join(p.lstrip("-").title() for p in command.split()) if path else "")
     if not path:
-        lines = [heading, "", "  --inspect / -i        View saved data or preview dates", "  --write / -w          Save course names, clubs or date rules", "  --export / -e         Write an .ics calendar", "", "  python -m shbs-calendar -i --day 0920-0924", "  python -m shbs-calendar -w --courses -e --day 0920-0924", "", "  First time using? run python -m shbs-calendar --docs"]
+        lines = [heading, "", "  --inspect / -i        View saved data or preview dates", "  --write / -w          Save course names, clubs or date rules", "  --export / -e         Write an .ics calendar", "", "  python -m bcalendar-utils -i --day 0920-0924", "  python -m bcalendar-utils -w --courses -e --day 0920-0924", "", "  First time using? run python -m bcalendar-utils --docs"]
         if detailed:
-            lines = [heading, "", "Start here", "", "  python -m shbs-calendar -i --semesters --show 2026-27-s1", "  python -m shbs-calendar -w --semesters --use 2026-27-s1", "  python -m shbs-calendar -w --courses", "  python -m shbs-calendar -w --activities", "  python -m shbs-calendar -i --day 0920-0924", "  python -m shbs-calendar -e --last-inspect", "", "Actions", ""]
+            lines = [heading, "", "Start here", "", "  python -m bcalendar-utils -i --semesters --show 2026-27-s1", "  python -m bcalendar-utils -w --semesters --use 2026-27-s1", "  python -m bcalendar-utils -w --courses", "  python -m bcalendar-utils -w --activities", "  python -m bcalendar-utils -i --day 0920-0924", "  python -m bcalendar-utils -e --last-inspect", "", "Actions", ""]
             lines += rows([("--inspect / -i", "View timetables, saved CSV entries or dated events"), ("--write / -w", "Save names, selections or date rules to local files"), ("--export / -e", "Write an .ics snapshot for selected dates")])
-            lines += ["Sequential actions", "", "  python -m shbs-calendar -w --courses -i --day 0920-0924", "  python -m shbs-calendar -w --courses -e --day 0920-0924", "", "  Actions run left to right. Syntax is checked before any write or prompt.", "  Each write saves before the next action. Failure or cancellation stops later", "  actions; completed saves stay saved. Help anywhere runs no actions.", "  --root PATH, --profile NAME and --semester ID apply to the whole workflow.", ""]
+            lines += ["Sequential actions", "", "  python -m bcalendar-utils -w --courses -i --day 0920-0924", "  python -m bcalendar-utils -w --courses -e --day 0920-0924", "", "  Actions run left to right. Syntax is checked before any write or prompt.", "  Each write saves before the next action. Failure or cancellation stops later", "  actions; completed saves stay saved. Help anywhere runs no actions.", "  --root PATH, --profile NAME and --semester ID apply to the whole workflow.", ""]
             lines += ["  File exists? Add --overwrite to the same export command to replace it.", '  To keep it, use --output "exports/another-name.ics" with an unused name.', ""]
             lines += ["Shortcuts", "", "  -i, -w and -e always start an action in a workflow.", "  Use --week, --exception, --edit and --import in full.", "  Other shorts use initials: --day → -d, --activities → -a.", "  Inspect details: --inspect --docs · Write details: --write --docs", "  Export details: --export --docs · Open the desktop interface: --gui", "  Python 3.11+. On macOS use python3. No runtime packages needed."]
         else:
             lines += ["  More: --docs · Short flags use the first letter, e.g. --day → -d."]
         return "\n".join(lines) + "\n"
-    lines = [heading, ""] + textwrap.wrap("python -m shbs-calendar " + command + " " + usage_arguments(parser), width=84, initial_indent="  ", subsequent_indent="    ") + [""]
+    lines = [heading, ""] + textwrap.wrap("python -m bcalendar-utils " + command + " " + usage_arguments(parser), width=84, initial_indent="  ", subsequent_indent="    ") + [""]
     subcommands = children(parser)
     if subcommands:
         from .cli_workflow import ALLOWED
@@ -271,7 +271,7 @@ def render_help(parser, detailed=False):
             lines += ["  Normal times/weekdays and named clubs are defaults; CAS is off.", "  --noclub excludes clubs; --cas includes CAS; --nocas excludes CAS.", "  Saved rules require --schedule exceptions. Inline --exception rules replace", "  the saved row for their date; they never save to a file.", ""]
         if path[0] == "export":
             lines += ["  --last-inspect exports the last successful dated inspection for the current", "  profile and semester, including its dates, names, timing and exceptions.", "  It works across separate commands and in -i --day DATE -e -l.", "  Only --output and --overwrite can modify that export. Inspect again to", "  change events. Use --late for export timing; -l means --last-inspect here.", ""]
-            lines += ["  Replace an existing export by adding --overwrite to that export action:", "    python -m shbs-calendar --export --day 0920-0924 --overwrite", "  To keep the old file, choose an unused --output path ending in .ics.", "  --overwrite takes no value, does not prompt, and applies only to this export.", "  After a stacked write succeeds, retry only the failed export action.", ""]
+            lines += ["  Replace an existing export by adding --overwrite to that export action:", "    python -m bcalendar-utils --export --day 0920-0924 --overwrite", "  To keep the old file, choose an unused --output path ending in .ics.", "  --overwrite takes no value, does not prompt, and applies only to this export.", "  After a stacked write succeeds, retry only the failed export action.", ""]
         if subcommands:
             lines += textwrap.wrap("Operations: " + " · ".join("--" + name + " / " + short for name, short in names.items() if short and short not in {"-i", "-w", "-e"}), width=84, initial_indent="  ", subsequent_indent="    ")
         lines += ["  Common: --root PATH / -r · --profile NAME · --semester ID", "  --root selects the data folder; --profile selects a student (default: active).", "  --semester selects a timetable for this command without activating it.", "  Short forms use initials; colliding secondary options stay long-only."]

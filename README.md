@@ -1,6 +1,8 @@
-# SHBS Calendar
+# Block Calendar Utils
 
 Save your classes and clubs, preview selected dates, and export an `.ics` calendar.
+
+Repository: [block-calendar-utils](https://github.com/DupeisTaken/block-calendar-utils). Run `python -m bcalendar-utils` or the shorter `python -m bcutils`; both use the same commands and saved data.
 
 **Python 3.11+ · Windows or macOS · No account, server, Excel or runtime packages.** Tkinter is needed only for the desktop interface.
 
@@ -15,8 +17,8 @@ Save your classes and clubs, preview selected dates, and export an `.ics` calend
 Run from this folder; on macOS use `python3`:
 
 ```sh
-python -m shbs-calendar -i --day 0920-0924
-python -m shbs-calendar -e --last-inspect
+python -m bcalendar-utils -i --day 0920-0924
+python -m bcalendar-utils -e --last-inspect
 ```
 
 `-i` inspects, `-w` writes names/rules, and `-e` exports. After reviewing a dated inspection, use `-e --last-inspect` (short: **`-e -l`**) to export exactly those events. It works across separate commands; `-i --day 0920-0924 -e -l` also works in one command. [Last-inspection details](docs/commands.md#export-the-last-inspection). `0920-0924` means September 20–24 of the current year. Learn to [stack actions](docs/commands.md#navigation-and-sequential-actions) or [choose other dates](docs/commands.md#dates-and-selections).
@@ -25,7 +27,7 @@ Named enabled clubs are included by default; add `--noclub` to the inspection to
 
 If the export already exists, append **`--overwrite`** to that export action, or choose a new file with `--output "exports/revised.ics"`. [Replacement details](docs/command-catalogue.md#export).
 
-Prefer a window? Run `python -m shbs-calendar --gui` and follow the [GUI guide](docs/gui.md).
+Prefer a window? Run `python -m bcalendar-utils --gui` and follow the [GUI guide](docs/gui.md).
 
 ## Guides
 

@@ -7,11 +7,11 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
-from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.models import Activity, CalendarError, DayOverride
-from shbs_calendar.schedule import build_preview
-from shbs_calendar.storage import digest, load_semester
-from shbs_calendar.semesters import create_semester
+from bcutils.app import DEFAULT_ROOT, Workspace
+from bcutils.models import Activity, CalendarError, DayOverride
+from bcutils.schedule import build_preview
+from bcutils.storage import digest, load_semester
+from bcutils.semesters import create_semester
 
 
 class ActivityTests(unittest.TestCase):

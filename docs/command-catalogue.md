@@ -2,7 +2,9 @@
 
 [README](../README.md) · [Setup](setup.md) · [Workflow examples](commands.md) · [GUI guide](gui.md)
 
-Run `python -m shbs-calendar` from the project folder, followed by the commands below. On macOS, use `python3`.
+Run `python -m bcalendar-utils` from the project folder, followed by the commands below. On macOS, use `python3`.
+
+`python -m bcutils` is the equivalent short entry point, with the same flags, saved data and output.
 
 | Command | Purpose |
 | --- | --- |
@@ -46,7 +48,7 @@ A dated preview remembers its exact events for `-e --last-inspect`. Lists, valid
 Layout options apply only to event previews.
 
 ```sh
-python -m shbs-calendar -i --day 0920-0924 --layout list
+python -m bcalendar-utils -i --day 0920-0924 --layout list
 ```
 
 ## Write
@@ -87,7 +89,7 @@ Arguments for `--set`:
 Omitted fields keep their saved values. During name entry, Enter keeps the current selection, `-` clears it, and Ctrl+C/EOF cancels the unsaved batch. A changed name enables the selection.
 
 ```sh
-python -m shbs-calendar -w --courses --set T "Study Hall" --timing study-hall
+python -m bcalendar-utils -w --courses --set T "Study Hall" --timing study-hall
 ```
 
 ### Write club names
@@ -105,7 +107,7 @@ Prefix operations with `-w --activities`. With no operation, enter names for all
 Find IDs with `-i --activities`. Name-entry controls match courses; club times remain defined by the semester.
 
 ```sh
-python -m shbs-calendar -w --activities --set club-tue "Chess Club" --room Library
+python -m bcalendar-utils -w --activities --set club-tue "Chess Club" --room Library
 ```
 
 ### Write saved exceptions
@@ -146,13 +148,13 @@ Time filters use final school-clock times after pattern and timing changes, and 
 
 ```sh
 # Close two dates.
-python -m shbs-calendar -w --exceptions --set 2026-09-15:2026-09-16 --off
+python -m bcalendar-utils -w --exceptions --set 2026-09-15:2026-09-16 --off
 
 # Follow Monday on Friday; start late and cut off at 15:00.
-python -m shbs-calendar -w --exceptions --set 2026-09-18 --follow monday --shift 20 --afternoon-cutoff 15:00
+python -m bcalendar-utils -w --exceptions --set 2026-09-18 --follow monday --shift 20 --afternoon-cutoff 15:00
 
 # Preview the saved rules.
-python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --schedule exceptions
+python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --schedule exceptions
 ```
 
 ### Write semester definitions and initialize profiles
@@ -216,18 +218,18 @@ Repeat `--exception` to combine rules. Dates must be inside the selected range. 
 Inline rules apply only to this action. Add `--schedule exceptions` to include saved rules; inline rules replace the saved row for their date.
 
 ```sh
-python -m shbs-calendar -e --day 2026-09-14:2026-09-18 --exception 2026-09-15:2026-09-16 off
-python -m shbs-calendar -e --day 2026-09-18 --exception 2026-09-18 blank=10:00-11:00 --exception 2026-09-18 overlap=remove
+python -m bcalendar-utils -e --day 2026-09-14:2026-09-18 --exception 2026-09-15:2026-09-16 off
+python -m bcalendar-utils -e --day 2026-09-18 --exception 2026-09-18 blank=10:00-11:00 --exception 2026-09-18 overlap=remove
 ```
 
 ### Export examples and destination
 
 ```sh
-python -m shbs-calendar -i --day 0920-0924 --late
-python -m shbs-calendar -e --last-inspect
+python -m bcalendar-utils -i --day 0920-0924 --late
+python -m bcalendar-utils -e --last-inspect
 
 # Or inspect and export in one command, without pausing.
-python -m shbs-calendar -i --day 0920-0924 -e -l
+python -m bcalendar-utils -i --day 0920-0924 -e -l
 ```
 
 With `--last-inspect`, only context, output and overwrite options may accompany it. Repeat context overrides across separate commands. To change events, inspect again. [Snapshot details](commands.md#export-the-last-inspection).
@@ -241,8 +243,8 @@ Default destination: `<root>/exports/<profile>-<semester>-<first-date>-<last-dat
 ### Syntax conventions
 
 ```text
-python -m shbs-calendar [CONTEXT] ACTION [TARGET] [OPTIONS]
-python -m shbs-calendar [CONTEXT] ACTION ... ACTION ...
+python -m bcalendar-utils [CONTEXT] ACTION [TARGET] [OPTIONS]
+python -m bcalendar-utils [CONTEXT] ACTION ... ACTION ...
 ```
 
 Actions run left to right. All syntax and dates are checked before saving or prompting; file contents are checked when each action runs. Errors or cancellation stop later actions; completed saves remain. [Workflow examples](commands.md#navigation-and-sequential-actions).
@@ -302,8 +304,8 @@ Block filters leave saved selections and included activities unchanged. Date rul
 For a positional name starting with a dash, use `--` and put that action last: all remaining input is literal. For an option value, use `=`.
 
 ```sh
-python -m shbs-calendar -w --courses --set -- A "--Example"
-python -m shbs-calendar -w --activities --set club-tue "Debate" --room=--Example
+python -m bcalendar-utils -w --courses --set -- A "--Example"
+python -m bcalendar-utils -w --activities --set club-tue "Debate" --room=--Example
 ```
 
 Exit codes: **0** success/help, **2** invalid input or write failure, **130** cancelled input. Pipes use UTF-8 without styling; `NO_COLOR` or `TERM=dumb` also disables styling. [Troubleshooting](commands.md#when-a-command-fails).

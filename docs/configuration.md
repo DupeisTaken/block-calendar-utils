@@ -4,7 +4,7 @@
 
 Each terminal command reloads the semester definition. After editing `semesters/<id>/`, close and reopen the GUI to load the changed definition. Student files are reread for previews and exports; to refresh editable GUI fields, click **Reload CSV** on Courses (this also reloads clubs and exceptions). Neither interface maintains a separate database.
 
-Paths below are relative to the data root: the source checkout by default, or the folder supplied with `--root PATH`. Inline command fragments follow `python -m shbs-calendar` (use `python3` on macOS). See the [command guide](commands.md) for complete commands, export destinations and overwrite instructions.
+Paths below are relative to the data root: the source checkout by default, or the folder supplied with `--root PATH`. Inline command fragments follow `python -m bcalendar-utils` (use `python3` on macOS). See the [command guide](commands.md) for complete commands, export destinations and overwrite instructions.
 
 Dates in configuration/CSV files use `YYYY-MM-DD`. The terminal additionally accepts [flexible date input and short commands](commands.md); those inputs are converted to ISO dates before any saved-file operation or scheduling calculation. A yearless terminal date always uses the current year, not the semester's year.
 
@@ -61,7 +61,7 @@ CAS's name must be blank and its exported title is always `CAS`; `--cas` opts it
 
 ## Date exceptions
 
-For one export, use inline rules, for example `python -m shbs-calendar --export --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon`. Inline weekday/timing/half-day/time-window rules compose on the same date without writing files. Saved files are read during CLI preview/export only with `--schedule exceptions`; inline rules then replace the saved row for their date in full. The `--inspect --exceptions`, `--write --exceptions --set` and `--write --exceptions --remove` commands read saved rules for inspection/editing independently of that export option.
+For one export, use inline rules, for example `python -m bcalendar-utils --export --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon`. Inline weekday/timing/half-day/time-window rules compose on the same date without writing files. Saved files are read during CLI preview/export only with `--schedule exceptions`; inline rules then replace the saved row for their date in full. The `--inspect --exceptions`, `--write --exceptions --set` and `--write --exceptions --remove` commands read saved rules for inspection/editing independently of that export option.
 
 Shared path: `semesters/<semester>/exceptions.csv`.
 Personal path: `local/profiles/<profile>/<semester>/exceptions.csv`.
@@ -141,7 +141,7 @@ The sequence is: select actual day's pattern → apply course timing option → 
 
 ## A new semester
 
-1. Run `python -m shbs-calendar --write --semesters --new 2026-27-s2 --blocks X,Y,Z`, supplying the actual block names. This creates a draft with an empty timetable. Alternatively pass `--timetable path.csv` to import complete rows immediately; invalid imports leave no installed folder.
+1. Run `python -m bcalendar-utils --write --semesters --new 2026-27-s2 --blocks X,Y,Z`, supplying the actual block names. This creates a draft with an empty timetable. Alternatively pass `--timetable path.csv` to import complete rows immediately; invalid imports leave no installed folder.
 2. Fill `timetable.csv` with the actual pattern/block/start/end arrangements. The default `semester.json` maps Monday–Friday to `monday`–`friday` and uses UTC+08:00. Set `--weekdays mon=red,tue=blue` or `--utc-offset +08:00` when creating a different mapping/clock. Omitted weekdays have no classes. You may also edit the JSON, including optional timing choices.
 3. Run `--inspect --semesters --show 2026-27-s2` and compare the entire timetable to the school source. `--inspect --semesters` reports incomplete definitions as drafts/invalid. A draft cannot export.
 4. Run `--write --semesters --use 2026-27-s2`, or review and select the valid definition in the GUI. Activation validates the definition and creates a separate blank `courses.csv`. Previous selections remain available. Use `--write --courses --edit` or `--write --courses --set X "Course name"` to select courses.

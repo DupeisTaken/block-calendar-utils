@@ -7,12 +7,12 @@ from dataclasses import replace
 from datetime import date, time
 from pathlib import Path
 
-from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.exceptions import inline_overrides
-from shbs_calendar.models import Activity, CalendarError, Course, DayOverride, Session
-from shbs_calendar.schedule import build_preview
-from shbs_calendar.storage import digest, load_overrides, load_semester
-from shbs_calendar.semesters import create_semester
+from bcutils.app import DEFAULT_ROOT, Workspace
+from bcutils.exceptions import inline_overrides
+from bcutils.models import Activity, CalendarError, Course, DayOverride, Session
+from bcutils.schedule import build_preview
+from bcutils.storage import digest, load_overrides, load_semester
+from bcutils.semesters import create_semester
 
 MON, FRI = date(2026, 9, 14), date(2026, 9, 18)
 

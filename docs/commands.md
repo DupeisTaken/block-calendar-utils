@@ -4,7 +4,7 @@
 
 This guide explains workflows and common corrections. For an operation-by-operation syntax reference, use the [command catalogue](command-catalogue.md).
 
-Run code-block commands from the source folder; use `python3` on macOS. Inline fragments are arguments to `python -m shbs-calendar`, not standalone shell commands. Replace uppercase placeholders such as `ID`, `DATE` and `NAME`; brackets in help mean optional arguments and are not typed.
+Run code-block commands from the source folder; use `python3` on macOS. Inline fragments are arguments to `python -m bcalendar-utils`, not standalone shell commands. Replace uppercase placeholders such as `ID`, `DATE` and `NAME`; brackets in help mean optional arguments and are not typed.
 
 ## Navigation and sequential actions
 
@@ -17,10 +17,10 @@ Start with an intent, then its target and options:
 | Export | `--export` / `-e` | Write an `.ics` snapshot |
 
 ```sh
-python -m shbs-calendar -i --courses
-python -m shbs-calendar -w --courses
-python -m shbs-calendar -e --day 0920-0924
-python -m shbs-calendar -w --courses -i --day 0920-0924 -e -l
+python -m bcalendar-utils -i --courses
+python -m bcalendar-utils -w --courses
+python -m bcalendar-utils -e --day 0920-0924
+python -m bcalendar-utils -w --courses -i --day 0920-0924 -e -l
 ```
 
 A new intent starts a new action. Actions run left to right. Repeat `-w` to write more than one target. Each write saves once before the next action; later actions read the saved result. Syntax and date input for the whole workflow are checked before any prompt or save. File contents and scheduling are validated when each action runs, after earlier writes have completed.
@@ -30,7 +30,7 @@ An error or Ctrl+C/EOF stops subsequent actions. Completed saves remain saved; t
 `--root PATH`, `--profile NAME` and `--semester ID` apply to the entire workflow wherever they appear. Conflicting values are rejected. Other options apply only to their action. Use `-e --last-inspect` to export the exact previous preview; for an independent export with explicit dates, repeat its dates, activity choices and rules.
 
 ```sh
-python -m shbs-calendar --profile student -w --courses --set A "Mathematics" -w --activities --set club-tue "Chess Club" -e --day 9.14:9.18 --clubs
+python -m bcalendar-utils --profile student -w --courses --set A "Mathematics" -w --activities --set club-tue "Chess Club" -e --day 9.14:9.18 --clubs
 ```
 
 `-i`, `-w` and `-e` always start workflow actions. Use `--week`, `--exception`, `--edit` and `--import` in full. Other short flags use the first letter within their scope; colliding secondary options stay long-only. For example, `-d` means `--day` in an export, but `--disable` in a course-write action. In exports, `-l` means `--last-inspect`; use `--late` for lateness. In inspection, `-l` still means `--late`. `--profile`, `--semester`, `--clubs`, `--noclub`, `--nocas`, `--only`, `--exclude`, `--overwrite` and `--docs` are long-only.
@@ -40,14 +40,14 @@ Use `--` before literal positional values that start with a dash, for example `-
 ## Inspect
 
 ```sh
-python -m shbs-calendar -i --semesters
-python -m shbs-calendar -i --semesters --show 2026-27-s1
-python -m shbs-calendar -i --courses
-python -m shbs-calendar -i --courses --path
-python -m shbs-calendar -i --activities
-python -m shbs-calendar -i --exceptions
-python -m shbs-calendar -i --day 0920-0924
-python -m shbs-calendar -i --validate --day 0920-0924
+python -m bcalendar-utils -i --semesters
+python -m bcalendar-utils -i --semesters --show 2026-27-s1
+python -m bcalendar-utils -i --courses
+python -m bcalendar-utils -i --courses --path
+python -m bcalendar-utils -i --activities
+python -m bcalendar-utils -i --exceptions
+python -m bcalendar-utils -i --day 0920-0924
+python -m bcalendar-utils -i --validate --day 0920-0924
 ```
 
 With a target, inspection lists saved data; `--semesters --show ID` reviews a full definition and `--courses --path` prints its CSV location. Without a target, date options select an event preview. `--validate` reports the event count, dates and school clock without writing a calendar. Empty previews/validation are valid.
@@ -59,12 +59,12 @@ Preview-only options are `--width NUMBER` (20–300 columns; default terminal wi
 ## Write names and setup
 
 ```sh
-python -m shbs-calendar -w --semesters --use 2026-27-s1
-python -m shbs-calendar -w --courses
-python -m shbs-calendar -w --activities
-python -m shbs-calendar -w --courses --set A "Mathematics" --room "Room 1"
-python -m shbs-calendar -w --courses --set T "Study Hall" --timing study-hall
-python -m shbs-calendar -w --activities --set club-tue "Chess Club" --room Library
+python -m bcalendar-utils -w --semesters --use 2026-27-s1
+python -m bcalendar-utils -w --courses
+python -m bcalendar-utils -w --activities
+python -m bcalendar-utils -w --courses --set A "Mathematics" --room "Room 1"
+python -m bcalendar-utils -w --courses --set T "Study Hall" --timing study-hall
+python -m bcalendar-utils -w --activities --set club-tue "Chess Club" --room Library
 ```
 
 Select a reviewed semester before entering names. Courses and activities default to batch name entry. **Enter** keeps the current value, **-** clears it, and **Ctrl+C** or EOF discards the unsaved batch. Enter preserves a disabled selection's state. New names enable the selection. Timing choices, room and teacher values are retained unless explicitly changed. CAS has a fixed title and is never prompted for.
@@ -88,16 +88,16 @@ Course import validates and replaces all course selections from the supplied CSV
 The usual workflow is inspect, review, then export the remembered preview:
 
 ```sh
-python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --late --cas --exception 2026-09-18 no-afternoon
-python -m shbs-calendar -e --last-inspect
+python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --late --cas --exception 2026-09-18 no-afternoon
+python -m bcalendar-utils -e --last-inspect
 ```
 
 `-e -l` is the short form. A combined command also works:
 
 ```sh
-python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --noclub -e -l
-python -m shbs-calendar -e -l --output "exports/reviewed.ics"
-python -m shbs-calendar -e -l --overwrite
+python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --noclub -e -l
+python -m bcalendar-utils -e -l --output "exports/reviewed.ics"
+python -m bcalendar-utils -e -l --overwrite
 ```
 
 The snapshot contains the exact reviewed dates, titles, rooms, UIDs and times, including activity choices, block filters and resolved exceptions. Relative weeks are fixed at inspection time. Later edits to source files do not alter it; inspect again to include new changes. Only the export destination and overwrite option can vary. Combining `--last-inspect` with dates, timing, activities or event filters is an error.
@@ -113,10 +113,10 @@ The snapshot is stored under `local/inspections/`; inspecting still leaves your 
 Direct exports remain available and use current saved data with their own options:
 
 ```sh
-python -m shbs-calendar -e --day 9.18
-python -m shbs-calendar -e --day 9.14:9.18 --clubs --cas
-python -m shbs-calendar -e --week 0914 --weeks 2
-python -m shbs-calendar -e --day 9.18 --output "exports/friday.ics"
+python -m bcalendar-utils -e --day 9.18
+python -m bcalendar-utils -e --day 9.14:9.18 --clubs --cas
+python -m bcalendar-utils -e --week 0914 --weeks 2
+python -m bcalendar-utils -e --day 9.18 --output "exports/friday.ics"
 ```
 
 The default file is `<root>/exports/<profile>-<semester>-<first-date>-<last-date>.ics`. Changing names, filters, timing or rules does not change that filename. `--output FILE` selects another `.ics` path; relative paths start in the terminal's current folder, independently of `--root`. Quote paths with spaces. Saving creates missing parent folders. An empty export is rejected.
@@ -124,8 +124,8 @@ The default file is `<root>/exports/<profile>-<semester>-<first-date>-<last-date
 If the file exists, append **`--overwrite` to the export action**. It takes no value and replaces the entire file without prompting, merging or making an export backup. To keep the old file, choose an unused `--output` path:
 
 ```sh
-python -m shbs-calendar -e --day 0920-0924 --exception 0920 Thu --exception 0924 Fri --overwrite
-python -m shbs-calendar -e --day 0920-0924 --exception 0920 Thu --exception 0924 Fri --output "exports/revised-week.ics"
+python -m bcalendar-utils -e --day 0920-0924 --exception 0920 Thu --exception 0924 Fri --overwrite
+python -m bcalendar-utils -e --day 0920-0924 --exception 0920 Thu --exception 0924 Fri --output "exports/revised-week.ics"
 ```
 
 Keep the failed export's other options when retrying. `--overwrite` applies only to its export action, not every export in a stack.
@@ -168,8 +168,8 @@ Supply one date selector per action. `--day 9.14 --day 9.18` is rejected; use a 
 Inline rules change only the inspection/export action where they appear:
 
 ```sh
-python -m shbs-calendar -i --day 9.14:9.18 --exception 9.18 Mon
-python -m shbs-calendar -e --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon
+python -m bcalendar-utils -i --day 9.14:9.18 --exception 9.18 Mon
+python -m bcalendar-utils -e --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon
 ```
 
 Rules include `Mon`–`Sun`, a semester-defined pattern, `off`, `late`, `normal`, `no-morning` and `no-afternoon`, plus the [time-window rules below](#blank-dates-and-hours). A weekday rule needs a pattern mapped to that weekday. `off` removes every event, including activities. Independent weekday, timing and half-day rules compose on the same date; contradictory rules and dates outside the selected range are errors.
@@ -177,9 +177,9 @@ Rules include `Mon`–`Sun`, a semester-defined pattern, `off`, `late`, `normal`
 To save a rule for future exports, write it to the personal exception CSV:
 
 ```sh
-python -m shbs-calendar -w --exceptions --set 9.18 --follow monday --half-day no-afternoon
-python -m shbs-calendar -e --day 9.14:9.18 --schedule exceptions
-python -m shbs-calendar -w --exceptions --remove 9.18
+python -m bcalendar-utils -w --exceptions --set 9.18 --follow monday --half-day no-afternoon
+python -m bcalendar-utils -e --day 9.14:9.18 --schedule exceptions
+python -m bcalendar-utils -w --exceptions --remove 9.18
 ```
 
 For `--set DATE[:DATE]`, supply time filters below or choose one of `--off`, `--follow PATTERN`, `--late`, `--normal`, `--no-morning` or `--no-afternoon`. `--follow` takes the full pattern name (`monday` in this preset). With `--follow`, `--shift MINUTES` replaces the export shift with -720 to 720 minutes, staying within the same day. Add `--half-day no-morning` or `--half-day no-afternoon` to a weekday/timing rule; `--note TEXT` adds a preview explanation. A closure cannot combine with half-day or time filters.
@@ -193,11 +193,11 @@ Half-day filtering uses final start times after pattern substitution, duration c
 Exception dates accept the same inclusive ranges as `--day`. Use `off` to blank every event on those dates. Time windows use the school clock after weekday substitution, timing options and shifts.
 
 ```sh
-python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --exception 2026-09-15:2026-09-16 off
-python -m shbs-calendar -e --day 2026-09-14:2026-09-18 --exception 2026-09-18 blank=10:00-11:00
-python -m shbs-calendar -i --day 2026-09-18 --exception 2026-09-18 blank=10:00-11:00 --exception 2026-09-18 overlap=remove
-python -m shbs-calendar -i --day 2026-09-18 --exception 2026-09-18 no-morning=09:30 --exception 2026-09-18 no-afternoon=15:00
-python -m shbs-calendar -w --exceptions --set 2026-09-14:2026-09-18 --blank-hours 10:00-11:00 --morning-cutoff 09:00 --afternoon-cutoff 16:00 --overlap trim
+python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --exception 2026-09-15:2026-09-16 off
+python -m bcalendar-utils -e --day 2026-09-14:2026-09-18 --exception 2026-09-18 blank=10:00-11:00
+python -m bcalendar-utils -i --day 2026-09-18 --exception 2026-09-18 blank=10:00-11:00 --exception 2026-09-18 overlap=remove
+python -m bcalendar-utils -i --day 2026-09-18 --exception 2026-09-18 no-morning=09:30 --exception 2026-09-18 no-afternoon=15:00
+python -m bcalendar-utils -w --exceptions --set 2026-09-14:2026-09-18 --blank-hours 10:00-11:00 --morning-cutoff 09:00 --afternoon-cutoff 16:00 --overlap trim
 ```
 
 `trim` is the default: shorten overlapping sessions and retain both pieces when a blank falls in the middle. Choose `overlap=remove` (saved rules: `--overlap remove`) to remove any overlapping session entirely. Repeat `blank=...` / `--blank-hours`, or separate windows with commas. Windows include their start and exclude their end; sessions merely touching a boundary remain. `24:00` is allowed as an end boundary. Blank windows and both cutoffs may combine; a morning cutoff later than the afternoon cutoff is rejected. Cutoffs blank times **before** the morning boundary and **from** the afternoon boundary. These rules also affect clubs and CAS.
@@ -216,14 +216,14 @@ Saved `--set` and `--remove` accept a date or range and save once. `--set` repla
 After saving the range in the example above, preview its rules or remove the whole batch:
 
 ```sh
-python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --schedule exceptions
-python -m shbs-calendar -w --exceptions --remove 2026-09-14:2026-09-18
+python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --schedule exceptions
+python -m bcalendar-utils -w --exceptions --remove 2026-09-14:2026-09-18
 ```
 
 No named enabled clubs is a valid default selection; it adds no club events. Explicit `--clubs` instead reports an error when no enabled clubs are available. `--noclub` excludes clubs without changing saved names or enabled states. To exclude activities in both preview and export:
 
 ```sh
-python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --noclub --nocas -e --day 2026-09-14:2026-09-18 --noclub --nocas
+python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --noclub --nocas -e --day 2026-09-14:2026-09-18 --noclub --nocas
 ```
 
 ## Context and definitions
@@ -231,10 +231,10 @@ python -m shbs-calendar -i --day 2026-09-14:2026-09-18 --noclub --nocas -e --day
 `--root PATH` / `-r PATH` selects a folder containing `semesters/`, `local/` and default `exports/`; it defaults to this source checkout. The initial profile is `me`. `--profile NAME` selects a student for the workflow; `--semester ID` selects a valid timetable without activating it. `-w --semesters --use ID` remembers the semester and selected profile. Names contain 1–64 ASCII letters, digits, dashes or underscores, starting with a letter or digit; Windows device names are reserved.
 
 ```sh
-python -m shbs-calendar --profile student-two -w --semesters --use 2026-27-s1 -w --courses
-python -m shbs-calendar --profile student-two -i --day 9.18
-python -m shbs-calendar -w --semesters --new spring --blocks X,Y,Z
-python -m shbs-calendar -w --semesters --new autumn --copy 2026-27-s1
+python -m bcalendar-utils --profile student-two -w --semesters --use 2026-27-s1 -w --courses
+python -m bcalendar-utils --profile student-two -i --day 9.18
+python -m bcalendar-utils -w --semesters --new spring --blocks X,Y,Z
+python -m bcalendar-utils -w --semesters --new autumn --copy 2026-27-s1
 ```
 
 Name-entry/set operations create missing profile files. Inspecting student data and exporting require an initialized profile. Personal CSVs live in `local/profiles/<profile>/<semester>/`; stable identity lives in `local/profiles/<profile>/profile.json`.
@@ -243,7 +243,7 @@ A new definition requires exactly one of `--blocks` or `--copy`. With `--blocks`
 
 ## When a command fails
 
-Keep the same context options when following a correction. The fragments below follow `python -m shbs-calendar`.
+Keep the same context options when following a correction. The fragments below follow `python -m bcalendar-utils`.
 
 | Problem | Next action |
 | --- | --- |
@@ -257,17 +257,17 @@ Keep the same context options when following a correction. The fragments below f
 | CSV changed during name entry | Rerun name entry to load the latest file, then reenter edits. In the GUI use **Reload CSV** on Courses. |
 | Invalid destination | Use an `.ics` filename in a writable folder, such as `--output "exports/revised.ics"`. |
 
-For desktop export, run `python -m shbs-calendar --gui`, use **Dates & preview → Export .ics**, then choose a filename or accept the native save dialog's replacement confirmation. `--overwrite` is a terminal option.
+For desktop export, run `python -m bcalendar-utils --gui`, use **Dates & preview → Export .ics**, then choose a filename or accept the native save dialog's replacement confirmation. `--overwrite` is a terminal option.
 
 ## Help and presentation
 
 ```sh
-python -m shbs-calendar --help
-python -m shbs-calendar --docs
-python -m shbs-calendar -i --docs
-python -m shbs-calendar -i --day 0920-0924 --docs
-python -m shbs-calendar -w --courses --set --docs
-python -m shbs-calendar -e --docs
+python -m bcalendar-utils --help
+python -m bcalendar-utils --docs
+python -m bcalendar-utils -i --docs
+python -m bcalendar-utils -i --day 0920-0924 --docs
+python -m bcalendar-utils -w --courses --set --docs
+python -m bcalendar-utils -e --docs
 ```
 
 Help works before setup and never prompts or writes, even if earlier actions in the same command would write. `--help` gives essentials; `--docs` expands the current action. Running `-i` or `-w` alone shows its navigation choices.

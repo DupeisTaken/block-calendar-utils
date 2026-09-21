@@ -12,8 +12,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.gui import CalendarApp, SemesterSetup
+from bcutils.app import DEFAULT_ROOT, Workspace
+from bcutils.gui import CalendarApp, SemesterSetup
 
 
 def main():
@@ -26,7 +26,7 @@ def main():
     parser.add_argument("--output", type=Path, default=DEFAULT_ROOT / "local/qa")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="shbs-visual-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="bcutils-visual-") as tmp:
         root_path = Path(tmp)
         shutil.copytree(DEFAULT_ROOT / "semesters", root_path / "semesters")
         root = tk.Tk()

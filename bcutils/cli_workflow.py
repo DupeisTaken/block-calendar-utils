@@ -94,15 +94,15 @@ not begin with a dash cannot be stage markers. Attached values remain opaque.
 
 
 def navigation_help(mode, detailed=False):
-    heading = "SHBS Calendar / " + mode.title()
+    heading = "Block Calendar Utils / " + mode.title()
     if mode == "inspect":
         items = [("--day DATE[:DATE]", "Preview events for a day or inclusive range"), ("--courses", "List block keys, names and enabled state"), ("--activities", "List club IDs, names and times"), ("--semesters", "List timetables; add --show ID to review one"), ("--exceptions", "List school and personal date rules"), ("--validate --day DATE", "Check events without writing a calendar")]
     else:
         items = [("--courses", "Enter course names; or --set BLOCK NAME"), ("--activities", "Enter club names; or --set ID NAME"), ("--exceptions", "Save closures, blank hours or morning/afternoon cutoffs"), ("--semesters", "Select with --use ID; create with --new ID"), ("--init", "Create missing blank profile files")]
-    lines = [heading, "", f"  python -m shbs-calendar --{mode} [target] [options]", ""] + rows(items)
+    lines = [heading, "", f"  python -m bcalendar-utils --{mode} [target] [options]", ""] + rows(items)
     lines += ["  Add --help or --docs after a target for its arguments.", f"  Example: --{mode} --courses --docs", ""]
     if detailed:
-        lines += ["  Actions run left to right. Repeat --inspect, --write or --export to stack.", "  Each write saves before the next action; a failure stops later actions.", "  Completed writes stay saved if a later action fails. Help never runs actions.", "  --root PATH, --profile NAME and --semester ID apply to the whole workflow.", "  Use --week, --exception, --edit and --import in full: -i, -w and -e", "  always start actions in this workflow.", "", '  python -m shbs-calendar -w --courses -e --day 9.18', ""]
+        lines += ["  Actions run left to right. Repeat --inspect, --write or --export to stack.", "  Each write saves before the next action; a failure stops later actions.", "  Completed writes stay saved if a later action fails. Help never runs actions.", "  --root PATH, --profile NAME and --semester ID apply to the whole workflow.", "  Use --week, --exception, --edit and --import in full: -i, -w and -e", "  always start actions in this workflow.", "", '  python -m bcalendar-utils -w --courses -e --day 9.18', ""]
     else:
         lines += [f"  More: --{mode} --docs"]
     return "\n".join(lines) + "\n"

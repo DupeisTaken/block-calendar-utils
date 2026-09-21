@@ -12,6 +12,8 @@ The public CLI starts with intent: `--inspect` / `-i`, `--write` / `-w`, or `--e
 
 ## Code and data ownership
 
+`bcutils/` contains the shared Python package. `python -m bcutils` and the root `bcalendar-utils.py` module (`python -m bcalendar-utils`) call the same CLI. `bcutils-gui.pyw` is the Windows desktop launcher. The default data root is the package's parent folder, independent of the checkout's name. The maintained guides replace the original implementation plan.
+
 | Layer | Responsibility |
 | --- | --- |
 | `cli.py` | Existing argparse handlers; course/club name entry; workspace/service calls |
@@ -49,9 +51,10 @@ No runtime third-party dependencies are introduced. Tkinter is imported only whe
 - Layout is computed as plain text before styling. All terminal interactions use one presentation boundary with bold headings/outcomes and cyan flags/dates/times. Pipes, `NO_COLOR` and `TERM=dumb` remain plain; console modes are restored. Preview alignment and ICS bytes do not depend on ANSI styling.
 - Single-day GUI selection uses the shared `date_range("day", anchor)` resolver with identical start/end dates. The GUI mirrors the date into its disabled last-date field and remembers the mode across restarts. CLI selectors remain mutually exclusive; `--weeks` applies only to week presets.
 
-- The legacy underscore module entry remains an alias. Hyphens are used in documented commands, flags and timing-choice arguments.
+- Both `bcalendar-utils` and `bcutils` are public module entry points. Hyphens are used in flags and timing-choice arguments.
 - Legacy `semester` settings were sometimes filled automatically. The new `active_semester` key is set only by explicit activation; old student files are not migrated or overwritten. The user confirms a definition once after upgrading.
 - Existing timetable session IDs stay unchanged. Simple CSVs can omit the ID column; generated IDs depend on pattern, block and occurrence order within that pattern/block, so clock changes do not alter identities. Advanced duration overrides should use explicit IDs.
+- Event UIDs retain the historical `@shbs-calendar.local` suffix across the project rename. It is a persisted identity marker, not a server address or product label; changing it would change every exported event's identity.
 - New semesters never overwrite existing folders. A failed supplied-CSV validation leaves no installed definition. Copying a semester excludes school exceptions and student selections.
 - Normal weekday and inline-only exports ignore saved exception files without deleting them. Saved-exception mode validates files and requires at least one saved/inline exception in range. Inline rows replace saved rows in full; independent inline rule types for the same date compose before resolution. Contradictory rules and out-of-range inline dates fail explicitly.
 - Exception ranges expand into at most 3,660 per-date rules. Saved batches use one atomic replacement. Optional CSV window fields keep old files readable. A matching custom cutoff replaces its legacy half-day start-time filter; other legacy filters retain whole-session behavior. Merged blank windows operate on final session times, with half-open boundaries. The first surviving piece keeps the occurrence UID; later pieces derive distinct UIDs from the original identity and their start boundary.

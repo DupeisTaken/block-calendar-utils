@@ -12,16 +12,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.cli import main
-from shbs_calendar.models import Course
-from shbs_calendar.storage import digest
+from bcutils.app import DEFAULT_ROOT, Workspace
+from bcutils.cli import main
+from bcutils.models import Course
+from bcutils.storage import digest
 
 
 def capture(syntax=False, entry=False, help_page=None, workflow=False):
     import tkinter as tk
     from PIL import ImageGrab
-    with tempfile.TemporaryDirectory(prefix="shbs-preview-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="bcutils-preview-") as tmp:
         workspace = Workspace(Path(tmp))
         shutil.copytree(DEFAULT_ROOT / "semesters", workspace.root / "semesters")
         ctx = workspace.use_semester("2026-27-s1")
@@ -30,34 +30,34 @@ def capture(syntax=False, entry=False, help_page=None, workflow=False):
         output = io.StringIO()
         # Render every interaction as an ANSI-capable terminal without changing
         # the user's console mode or environment outside this capture.
-        with redirect_stdout(output), patch.object(output, "isatty", return_value=True), patch.dict(os.environ, {}, clear=True), patch("shbs_calendar.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
+        with redirect_stdout(output), patch.object(output, "isatty", return_value=True), patch.dict(os.environ, {}, clear=True), patch("bcutils.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
             if workflow:
                 # Exercise the real sequence and recovery using only this
                 # temporary profile. Each screenshot owns one short-lived window.
                 flags = ["-r", str(workspace.root)]
-                print('python -m shbs-calendar -i --day 2026-09-18 --late -e -l\n')
+                print('python -m bcalendar-utils -i --day 2026-09-18 --late -e -l\n')
                 assert main(flags + ["-i", "--day", "2026-09-18", "--late", "-e", "-l"]) == 0
-                print('\npython -m shbs-calendar -e --last-inspect\n')
+                print('\npython -m bcalendar-utils -e --last-inspect\n')
                 with redirect_stderr(output):
                     assert main(flags + ["-e", "--last-inspect"]) == 2
-                print('\npython -m shbs-calendar -e -l --overwrite\n')
+                print('\npython -m bcalendar-utils -e -l --overwrite\n')
                 assert main(flags + ["-e", "-l", "--overwrite"]) == 0
             elif help_page:
                 # Emulate an ANSI-capable terminal, then render the exact output
                 # below with Tk tags. No native console or user data is changed.
-                with patch.object(output, "isatty", return_value=True), patch.dict(os.environ, {}, clear=True), patch("shbs_calendar.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
+                with patch.object(output, "isatty", return_value=True), patch.dict(os.environ, {}, clear=True), patch("bcutils.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
                     try:
                         route = ["--write", "--exceptions"] if help_page == "exceptions" else ["--" + help_page] if help_page != "overview" else []
                         main(route + ["-h"])
                     except SystemExit as exc:
                         assert exc.code == 0
             elif entry:
-                print("python -m shbs-calendar -h\n")
+                print("python -m bcalendar-utils -h\n")
                 try:
                     main(["-h"])
                 except SystemExit as exc:
                     assert exc.code == 0
-                print("\npython -m shbs-calendar -w --activities\n")
+                print("\npython -m bcalendar-utils -w --activities\n")
                 names = iter(["Chess Club", "Robotics Club"])
                 def answer(prompt):
                     value = next(names)
@@ -66,9 +66,9 @@ def capture(syntax=False, entry=False, help_page=None, workflow=False):
                 with patch("builtins.input", side_effect=answer):
                     assert main(["-r", str(workspace.root), "-w", "--activities"]) == 0
             elif syntax:
-                print("python -m shbs-calendar -i -d 20260917-20260918 --exception 2026.9.18 Mon\n")
+                print("python -m bcalendar-utils -i -d 20260917-20260918 --exception 2026.9.18 Mon\n")
                 assert main(["-r", str(workspace.root), "-i", "-d", "20260917-20260918", "--exception", "2026.9.18", "Mon", "--width", "100"]) == 0
-                print("\npython -m shbs-calendar -e -d 2026.2.30\n")
+                print("\npython -m bcalendar-utils -e -d 2026.2.30\n")
                 with redirect_stderr(output):
                     assert main(["-r", str(workspace.root), "-e", "-d", "2026.2.30"]) == 2
             else:

@@ -25,9 +25,9 @@ def fold_line(line: str) -> list[bytes]:
     return parts
 
 
-def calendar_bytes(events: list[Event], *, name: str = "SHBS classes", now: datetime | None = None) -> bytes:
+def calendar_bytes(events: list[Event], *, name: str = "Block calendar", now: datetime | None = None) -> bytes:
     stamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SHBS Calendar//Class Export 1.0//EN", "CALSCALE:GREGORIAN", f"X-WR-CALNAME:{escape_text(name)}"]
+    lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Block Calendar Utils//Class Export 1.0//EN", "CALSCALE:GREGORIAN", f"X-WR-CALNAME:{escape_text(name)}"]
     for event in sorted(events, key=lambda e: (e.start, e.uid)):
         lines.extend(["BEGIN:VEVENT", f"UID:{event.uid}", f"DTSTAMP:{stamp}",
                       f"DTSTART:{event.start.astimezone(timezone.utc):%Y%m%dT%H%M%SZ}",
@@ -42,7 +42,7 @@ def calendar_bytes(events: list[Event], *, name: str = "SHBS classes", now: date
     return b"\r\n".join(part for line in lines for part in fold_line(line)) + b"\r\n"
 
 
-def export_calendar(path: Path, events: list[Event], *, overwrite: bool = False, name: str = "SHBS classes") -> None:
+def export_calendar(path: Path, events: list[Event], *, overwrite: bool = False, name: str = "Block calendar") -> None:
     if path.suffix.lower() != ".ics":
         from .models import CalendarError
         raise CalendarError("Choose an output filename ending in .ics.")

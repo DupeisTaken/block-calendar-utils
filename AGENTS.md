@@ -1,4 +1,4 @@
-# SHBS Calendar — working agreements
+# Block Calendar Utils — working agreements
 
 ## Product and interaction design
 
@@ -89,7 +89,7 @@
   input, help without writes, cancellation, stale saves, export times, Unicode,
   redirected output and compatibility when those areas change.
 - Run `.venv-verify/Scripts/python.exe -m unittest discover` with
-  `SHBS_GUI_TESTS=1` for the full local suite. Use screenshots for CLI/GUI design
+  `BCUTILS_GUI_TESTS=1` (legacy `SHBS_GUI_TESTS=1` also works) for the full local suite. Use screenshots for CLI/GUI design
   changes; `tools/verify_preview.py` and `tools/verify_gui.py` use synthetic data.
 - Be conservative with machine resources: one short-lived QA window at a time,
   no background servers for this CLI, no redundant test runs. Close owned windows

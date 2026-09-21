@@ -5,11 +5,11 @@ import unittest
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
-from shbs_calendar.app import DEFAULT_ROOT
-from shbs_calendar.ical import calendar_bytes
-from shbs_calendar.models import Course, DayOverride
-from shbs_calendar.schedule import build_preview
-from shbs_calendar.storage import load_semester
+from bcutils.app import DEFAULT_ROOT
+from bcutils.ical import calendar_bytes
+from bcutils.models import Course, DayOverride
+from bcutils.schedule import build_preview
+from bcutils.storage import load_semester
 
 
 @unittest.skipUnless(importlib.util.find_spec("icalendar"), "Install requirements-dev.txt for independent parser tests")

@@ -1,5 +1,27 @@
 # Verification record
 
+## Project and command rename — 2026-09-21
+
+**151 tests passed**, including native Tk tests and the independent calendar parser. The repository is `block-calendar-utils`; the shared package is `bcutils/`. Both `python -m bcalendar-utils` and `python -m bcutils` call the same CLI. The Windows GUI launcher is `bcutils-gui.pyw`. The obsolete implementation plan was removed; the maintained setup, command, GUI and architecture guides provide the current documentation.
+
+Five new checks cover identical help without writes under both command names, a synthetic checkout moved with saved Unicode profiles and exports, execution from a different working directory, delegation by the desktop launcher, and a UID recorded before the rename. The relocation check verifies unchanged profile bytes and serialized event data, apart from export timestamps. Calendar branding is updated; the historical UID suffix is preserved deliberately. Help assertions accept line wrapping caused by the longer command name.
+
+The full suite passed from `E:\block-calendar-utils` after moving the actual checkout, rebuilding `.venv-verify` there, and rebasing onto the latest GitHub commits. The newer exception time windows, last-inspection exports and command catalogue were preserved; fresh CLI/GUI screenshots were reviewed after the rebase. SHA-256 checks confirmed all 13 existing profile, export and semester files were unchanged. Git resolves the new working-tree root and the renamed GitHub remote; the obsolete local path contains no files. Windows locked the original directory, and automatic approval review blocked removal of the empty remnants and pre-existing bytecode caches; no task-owned QA windows or Python processes remain running.
+
+Run these commands from the checkout to create an optional local verification environment:
+
+```powershell
+python -m venv .venv-verify
+.\.venv-verify\Scripts\python.exe -m pip install -r requirements-dev.txt
+$env:PYTHONDONTWRITEBYTECODE = '1'
+$env:BCUTILS_GUI_TESTS = '1'
+.\.venv-verify\Scripts\python.exe -m unittest discover -q
+.\.venv-verify\Scripts\python.exe tools/verify_preview.py --help-page overview
+.\.venv-verify\Scripts\python.exe tools/verify_gui.py
+```
+
+`SHBS_GUI_TESTS=1` remains accepted for older verification scripts. Reviewed fresh `local/qa/help-overview.png` and `courses-1.333.png`: the new headings and command examples are readable without clipping. Captures used one short-lived window at a time with synthetic profiles, and each temporary workspace was removed. Pillow was installed only in the local verification environment; application runtime dependencies are unchanged. Native macOS execution and actual calendar-client imports remain unverified.
+
 ## Export the last inspection — 2026-09-21
 
 Added `--export --last-inspect` / `-e -l` for both separate commands and combined inspect/export workflows. Successful dated CLI inspections remember exact resolved events in a separate local snapshot; profile CSVs and GUI settings remain unchanged. Export's `--late` is now long-only; Inspect/Validate retain `-l` for lateness.

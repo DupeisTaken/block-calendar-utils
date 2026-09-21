@@ -10,11 +10,11 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
-from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.ical import calendar_bytes
-from shbs_calendar.models import CalendarError, Course, DayOverride, Session
-from shbs_calendar.schedule import build_preview, date_range
-from shbs_calendar.storage import (atomic_write, digest, load_courses, load_semester,
+from bcutils.app import DEFAULT_ROOT, Workspace
+from bcutils.ical import calendar_bytes
+from bcutils.models import CalendarError, Course, DayOverride, Session
+from bcutils.schedule import build_preview, date_range
+from bcutils.storage import (atomic_write, digest, load_courses, load_semester,
                                    parse_time, safe_child, save_courses)
 
 MON = date(2026, 9, 14)
@@ -205,11 +205,11 @@ class StorageTests(unittest.TestCase):
     def test_failed_atomic_save_preserves_original_and_cleans_temp(self):
         path = self.root / "data.csv"
         path.write_bytes(b"original")
-        with patch("shbs_calendar.storage.os.replace", side_effect=OSError("simulated disk error")):
+        with patch("bcutils.storage.os.replace", side_effect=OSError("simulated disk error")):
             with self.assertRaises(CalendarError):
                 atomic_write(path, b"new")
         self.assertEqual(path.read_bytes(), b"original")
-        self.assertEqual(list(self.root.glob(".shbs-*")), [])
+        self.assertEqual(list(self.root.glob(".bcutils-*")), [])
 
     def test_exclusive_write_and_identity_persistence(self):
         output = self.root / "export.ics"
@@ -220,16 +220,16 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(self.ctx.identity, self.workspace.context("student", "2026-27-s1", create=True).identity)
 
     def test_destination_conflict_during_staging_keeps_file_and_cleans_temp(self):
-        from shbs_calendar.models import DestinationExistsError
+        from bcutils.models import DestinationExistsError
         output = self.root / "raced.ics"
         def concurrent_create(source, destination):
             destination.write_bytes(b"another writer")
             raise FileExistsError("destination was created during staging")
-        with patch("shbs_calendar.storage.os.link", side_effect=concurrent_create):
+        with patch("bcutils.storage.os.link", side_effect=concurrent_create):
             with self.assertRaises(DestinationExistsError):
                 atomic_write(output, b"our export", overwrite=False)
         self.assertEqual(output.read_bytes(), b"another writer")
-        self.assertEqual(list(self.root.glob(".shbs-*")), [])
+        self.assertEqual(list(self.root.glob(".bcutils-*")), [])
 
     def test_invalid_semester_configuration(self):
         folder = self.root / "semesters/2026-27-s1"

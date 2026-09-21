@@ -9,8 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from shbs_calendar.cli import main, parser, help_parser
-from shbs_calendar.help_style import SpacedHelpFormatter, style_help, windows_vt, write_help, emit, ask, error_message
+from bcutils.cli import main, parser, help_parser
+from bcutils.help_style import SpacedHelpFormatter, style_help, windows_vt, write_help, emit, ask, error_message
 
 
 class TerminalStream(io.StringIO):
@@ -23,7 +23,7 @@ class TerminalStream(io.StringIO):
 
 class HelpStyleTests(unittest.TestCase):
     def test_last_inspection_help_scopes_the_l_shortcut(self):
-        from shbs_calendar.cli_interface import render_help
+        from bcutils.cli_interface import render_help
         cli = parser()
         export = render_help(help_parser(cli, ["export"]), detailed=True)
         preview = render_help(help_parser(cli, ["preview"]), detailed=True)
@@ -51,7 +51,7 @@ class HelpStyleTests(unittest.TestCase):
                     self.assertEqual(list(Path(folder).iterdir()), [])
 
     def test_help_exposes_required_arguments_choices_and_replacement(self):
-        from shbs_calendar.cli_interface import render_help
+        from bcutils.cli_interface import render_help
         cli = parser()
         for path, expected in [
             (["courses", "set"], "--courses --set BLOCK NAME [options]"),
@@ -61,9 +61,12 @@ class HelpStyleTests(unittest.TestCase):
             (["exceptions", "remove"], "--exceptions --remove DATE [options]"),
         ]:
             with self.subTest(path=path):
-                self.assertIn(expected, help_parser(cli, path).format_help())
-        self.assertIn("--blocks BLOCKS | --copy ID", help_parser(cli, ["semester", "new"]).format_help())
-        saved = help_parser(cli, ["exceptions", "set"]).format_help()
+                self.assertIn(expected, " ".join(help_parser(cli, path).format_help().split()))
+        # A longer executable name may wrap the usage line; the complete choice
+        # must remain visible regardless of the terminal's line breaks.
+        new_semester = " ".join(help_parser(cli, ["semester", "new"]).format_help().split())
+        self.assertIn("--blocks BLOCKS | --copy ID", new_semester)
+        saved = " ".join(help_parser(cli, ["exceptions", "set"]).format_help().split())
         self.assertIn("--blank-hours HH:MM-HH:MM", saved)
         self.assertIn("--overlap {trim,remove}", saved)
         self.assertIn("--half-day {no-morning,no-afternoon}", saved)
@@ -83,7 +86,7 @@ class HelpStyleTests(unittest.TestCase):
         self.assertNotIn("Open gui options", root_docs)
 
     def test_help_is_compact_and_docs_expand_without_bare_commands(self):
-        from shbs_calendar.cli_interface import render_help
+        from bcutils.cli_interface import render_help
         cli = parser()
         for topics in (["activities"], ["courses", "set"], ["export"], ["exceptions", "set"]):
             with self.subTest(topics=topics):
@@ -93,7 +96,7 @@ class HelpStyleTests(unittest.TestCase):
                 self.assertIn("--docs", compact)
                 self.assertIn("--root", detailed)
                 self.assertNotIn("\x1b", compact)
-                self.assertNotRegex(compact, r"python -m shbs-calendar [a-z]")
+                self.assertNotRegex(compact, r"python -m bcalendar-utils [a-z]")
                 self.assertGreater(len(detailed), len(compact))
         activities = help_parser(cli, ["activities"]).format_help()
         self.assertIn('--activities --set club-tue "Chess Club"', activities)
@@ -106,20 +109,20 @@ class HelpStyleTests(unittest.TestCase):
             self.assertEqual(re.sub(r"\x1b\[[0-9;]*m", "", styled), plain)
             self.assertIn("\x1b[36m", styled)
             self.assertLessEqual(set(re.findall(r"\x1b\[([0-9;]*)m", styled)), {"0", "1", "36"})
-        self.assertIn("shbs-calendar", style_help("python -m shbs-calendar -d 2026-09-18\n"))
-        self.assertIn("2026-09-18", style_help("python -m shbs-calendar -d 2026-09-18\n"))
+        self.assertIn("bcalendar-utils", style_help("python -m bcalendar-utils -d 2026-09-18\n"))
+        self.assertIn("2026-09-18", style_help("python -m bcalendar-utils -d 2026-09-18\n"))
         self.assertNotIn("\x1b[1m", style_help("Use -d 9.14:9.18 for a range.\n"))
 
     def test_redirected_or_opted_out_output_is_plain(self):
         for stream, env in [(io.StringIO(), {}), (TerminalStream(), {"NO_COLOR": ""}), (TerminalStream(), {"TERM": "dumb"})]:
             with self.subTest(env=env), patch.dict(os.environ, env, clear=True):
-                with patch("shbs_calendar.help_style.windows_vt", side_effect=AssertionError("Console must not be touched")):
+                with patch("bcutils.help_style.windows_vt", side_effect=AssertionError("Console must not be touched")):
                     write_help("options:\n  -h, --help\n", stream)
                 self.assertNotIn("\x1b", stream.getvalue())
 
     def test_help_routes_color_only_at_output_boundary(self):
         for argv in (["-h"], ["-a", "-h"], ["help", "a", "set"], ["help"]):
-            with self.subTest(argv=argv), patch.dict(os.environ, {}, clear=True), patch("shbs_calendar.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
+            with self.subTest(argv=argv), patch.dict(os.environ, {}, clear=True), patch("bcutils.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
                 output = TerminalStream()
                 with redirect_stdout(output):
                     try:
@@ -141,7 +144,7 @@ class HelpStyleTests(unittest.TestCase):
                    "Saved club names:\n  activities.csv\n  Include with --clubs\n"]
         for env in ({}, {"NO_COLOR": ""}):
             output = TerminalStream()
-            with patch.dict(os.environ, env, clear=True), patch("shbs_calendar.help_style.windows_vt", side_effect=lambda _: nullcontext(True)), redirect_stdout(output):
+            with patch.dict(os.environ, env, clear=True), patch("bcutils.help_style.windows_vt", side_effect=lambda _: nullcontext(True)), redirect_stdout(output):
                 for sample in samples:
                     emit(sample, end="")
                 with patch("builtins.input", return_value="Chess") as read:

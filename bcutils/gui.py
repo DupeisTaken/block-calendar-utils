@@ -26,7 +26,7 @@ class CalendarApp:
         self.baseline, self.course_vars = [], []
         self.activity_baseline, self.activity_vars = [], {}
         self.course_digest = None
-        root.title("SHBS Calendar")
+        root.title("Block Calendar Utils")
         root.geometry("1120x800")
         root.minsize(980, 700)
         root.configure(bg=BG)
@@ -65,7 +65,7 @@ class CalendarApp:
     def _layout(self):
         header = ttk.Frame(self.root, padding=(28, 18, 28, 10))
         header.pack(fill="x")
-        ttk.Label(header, text="SHBS Calendar", style="Title.TLabel").pack(anchor="w")
+        ttk.Label(header, text="Block Calendar Utils", style="Title.TLabel").pack(anchor="w")
         ttk.Label(header, text="Your classes. Your week.", style="Muted.TLabel").pack(anchor="w", pady=(4, 0))
         context = ttk.Frame(self.root, padding=(28, 0, 28, 10))
         context.pack(fill="x")
@@ -571,7 +571,7 @@ class SemesterSetup:
 
     def __init__(self, root, workspace, profile=None):
         self.root, self.workspace, self.profile = root, workspace, profile
-        root.title("SHBS Calendar · Select semester")
+        root.title("Block Calendar Utils · Select semester")
         root.geometry("920x720")
         root.minsize(760, 620)
         root.configure(bg=BG)
@@ -596,7 +596,7 @@ class SemesterSetup:
         scroll.pack(side="right", fill="y")
         self.text.configure(yscrollcommand=scroll.set)
         self.text.pack(fill="both", expand=True)
-        self.set_text("Choose an existing semester above to review its timetable.\n\nTo define different blocks and times:\n\npython -m shbs-calendar --semesters --new spring --blocks X,Y,Z\n\nFill semesters/spring/timetable.csv, then run:\n\npython -m shbs-calendar --semesters --use spring\n\nClose and reopen this window after creating a new definition.")
+        self.set_text("Choose an existing semester above to review its timetable.\n\nTo define different blocks and times:\n\npython -m bcalendar-utils --write --semesters --new spring --blocks X,Y,Z\n\nFill semesters/spring/timetable.csv, then run:\n\npython -m bcalendar-utils --write --semesters --use spring\n\nClose and reopen this window after creating a new definition.")
 
     def set_text(self, value):
         self.text.configure(state="normal")

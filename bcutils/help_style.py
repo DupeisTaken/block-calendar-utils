@@ -68,7 +68,7 @@ def style_help(text):
     """
     result = []
     for line in text.splitlines(keepends=True):
-        if line.startswith("SHBS Calendar") or line.rstrip() in {"Start here", "Actions", "Shortcuts", "Courses", "Activities", "Exceptions", "Semesters"}:
+        if line.startswith("Block Calendar Utils") or line.rstrip() in {"Start here", "Actions", "Shortcuts", "Courses", "Activities", "Exceptions", "Semesters"}:
             line = "\033[1m" + line.rstrip("\n") + "\033[0m\n"
         elif heading := re.match(r"^([A-Za-z][A-Za-z /?&-]{0,28}:)(.*)", line):
             line = f"\033[1m{heading[1]}\033[0m{line[len(heading[1]):]}"

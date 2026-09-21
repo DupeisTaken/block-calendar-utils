@@ -11,10 +11,10 @@ The desktop interface edits the same local files as the terminal. It needs Pytho
 From the project folder, run:
 
 ```sh
-python -m shbs-calendar --gui
+python -m bcalendar-utils --gui
 ```
 
-On macOS use `python3`. On Windows you can also double-click `shbs-gui.pyw` if `.pyw` files are associated with Python. If double-clicking does nothing, launch from the terminal to see the error.
+On macOS use `python3`. On Windows you can also double-click `bcutils-gui.pyw` if `.pyw` files are associated with Python. If double-clicking does nothing, launch from the terminal to see the error.
 
 If Python reports that `tkinter` is missing, use a Python installation with Tk support. You can continue with the [terminal setup](setup.md#review-and-select-a-timetable) without Tkinter.
 

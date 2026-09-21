@@ -180,5 +180,5 @@ class Context:
         protected = [self.courses_path, self.exceptions_path, self.activities_path, self.workspace.settings_path]
         if output.resolve() in [p.resolve() for p in protected]:
             raise CalendarError("Choose a calendar destination outside your configuration files.")
-        export_calendar(output, preview.events, overwrite=overwrite, name=f"SHBS · {self.profile}")
+        export_calendar(output, preview.events, overwrite=overwrite, name=f"Block Calendar · {self.profile}")
         return output

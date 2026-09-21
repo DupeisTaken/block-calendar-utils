@@ -1,5 +1,6 @@
 """Double-click on Windows when .pyw files are associated with Python."""
 
-from shbs_calendar.gui import launch
+from bcutils.gui import launch
 
-launch()
+if __name__ == "__main__":
+    launch()

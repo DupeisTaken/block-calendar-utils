@@ -7,10 +7,10 @@ import shlex
 import unittest
 from urllib.parse import unquote
 
-from shbs_calendar.app import DEFAULT_ROOT
-from shbs_calendar.cli import arguments, parser
-from shbs_calendar.cli_interface import COMMON, DETAIL_OPTIONS, EXPORT_OPTIONS, GROUP_ACTIONS, normalize
-from shbs_calendar.cli_workflow import ALLOWED, STAGES, TARGETS, starts_workflow, split_stages, translate
+from bcutils.app import DEFAULT_ROOT
+from bcutils.cli import arguments, parser
+from bcutils.cli_interface import COMMON, DETAIL_OPTIONS, EXPORT_OPTIONS, GROUP_ACTIONS, normalize
+from bcutils.cli_workflow import ALLOWED, STAGES, TARGETS, starts_workflow, split_stages, translate
 
 
 class DocumentationTests(unittest.TestCase):
@@ -22,8 +22,9 @@ class DocumentationTests(unittest.TestCase):
             # verification logs intentionally do not form a runnable tutorial.
             for block in re.findall(r"```sh\n(.*?)```", document, re.S):
                 for line in block.splitlines():
-                    prefix = "python -m shbs-calendar "
-                    if not line.startswith(prefix):
+                    prefixes = ("python -m bcalendar-utils ", "python -m bcutils ")
+                    prefix = next((p for p in prefixes if line.startswith(p)), None)
+                    if prefix is None:
                         continue
                     count += 1
                     argv = shlex.split(line[len(prefix):])

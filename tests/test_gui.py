@@ -7,12 +7,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.ical import calendar_bytes
-from shbs_calendar.models import CalendarError
+from bcutils.app import DEFAULT_ROOT, Workspace
+from bcutils.ical import calendar_bytes
+from bcutils.models import CalendarError
 
 
-@unittest.skipUnless(os.environ.get("SHBS_GUI_TESTS") == "1", "Set SHBS_GUI_TESTS=1 for native Tk tests")
+# Retain the previous opt-in for existing local verification commands.
+@unittest.skipUnless(os.environ.get("BCUTILS_GUI_TESTS", os.environ.get("SHBS_GUI_TESTS")) == "1", "Set BCUTILS_GUI_TESTS=1 for native Tk tests")
 class GUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -25,7 +26,7 @@ class GUITests(unittest.TestCase):
         cls.root.destroy()
 
     def setUp(self):
-        from shbs_calendar.gui import CalendarApp
+        from bcutils.gui import CalendarApp
         self.temp = tempfile.TemporaryDirectory()
         root_path = Path(self.temp.name)
         shutil.copytree(DEFAULT_ROOT / "semesters", root_path / "semesters")
@@ -102,7 +103,7 @@ class GUITests(unittest.TestCase):
         self.assertTrue(self.workspace.settings()["clubs"])
 
     def test_setup_requires_review_and_activation(self):
-        from shbs_calendar.gui import SemesterSetup
+        from bcutils.gui import SemesterSetup
         for child in self.root.winfo_children():
             child.destroy()
         workspace = Workspace(self.workspace.root / "fresh")
@@ -120,8 +121,8 @@ class GUITests(unittest.TestCase):
         self.assertEqual(len(setup.app.course_vars), 10)
 
     def test_setup_rejects_draft_and_gui_uses_custom_blocks_and_patterns(self):
-        from shbs_calendar.gui import SemesterSetup
-        from shbs_calendar.semesters import create_semester
+        from bcutils.gui import SemesterSetup
+        from bcutils.semesters import create_semester
         for child in self.root.winfo_children():
             child.destroy()
         folder = create_semester(self.workspace, "different", blocks="X,Y", weekdays="mon=red")
@@ -144,7 +145,7 @@ class GUITests(unittest.TestCase):
         self.assertEqual(len(preview.events), 5)
         self.assertEqual(self.app.ctx.courses()[8].timing_option, "study_hall")
         path = self.workspace.root / "export.ics"
-        with patch("shbs_calendar.gui.filedialog.asksaveasfilename", return_value=str(path)):
+        with patch("bcutils.gui.filedialog.asksaveasfilename", return_value=str(path)):
             self.app.export()
         self.assertEqual(path.read_bytes().count(b"BEGIN:VEVENT"), 5)
         shared = self.app.ctx.preview(self.app.range_settings())
@@ -165,7 +166,7 @@ class GUITests(unittest.TestCase):
         self.app.ctx.courses_path.write_text("block,course\nA,External\n", encoding="utf-8")
         with self.assertRaisesRegex(CalendarError, "changed on disk"):
             self.app.save()
-        with patch("shbs_calendar.gui.messagebox.askyesno", return_value=True):
+        with patch("bcutils.gui.messagebox.askyesno", return_value=True):
             self.app.reload()
         self.assertEqual(self.fields("A")["course"].get(), "External")
 
@@ -188,16 +189,16 @@ class GUITests(unittest.TestCase):
         with self.assertRaises(CalendarError):
             self.app.preview()
         self.app.anchor_var.set("2026-09-14")
-        with patch("shbs_calendar.gui.filedialog.asksaveasfilename", return_value=""):
+        with patch("bcutils.gui.filedialog.asksaveasfilename", return_value=""):
             self.app.export()
         self.assertFalse((self.workspace.root / "exports").exists())
         self.fields("A")["course"].set("Unsaved")
-        with patch("shbs_calendar.gui.messagebox.askyesnocancel", return_value=None):
+        with patch("bcutils.gui.messagebox.askyesnocancel", return_value=None):
             self.assertFalse(self.app.keep_edits())
 
     def test_export_error_is_reported(self):
         self.fields("A")["course"].set("Math")
-        with patch("shbs_calendar.gui.filedialog.asksaveasfilename", return_value=str(self.workspace.root / "test.ics")), patch.object(self.app.ctx, "export", side_effect=CalendarError("disk full")), patch("shbs_calendar.gui.messagebox.showerror") as error:
+        with patch("bcutils.gui.filedialog.asksaveasfilename", return_value=str(self.workspace.root / "test.ics")), patch.object(self.app.ctx, "export", side_effect=CalendarError("disk full")), patch("bcutils.gui.messagebox.showerror") as error:
             self.app.run(self.app.export)
             self.assertIn("disk full", error.call_args.args[1])
 
@@ -243,12 +244,12 @@ class GUITests(unittest.TestCase):
         self.assertEqual(preview.start, preview.end)
         self.assertEqual(len(preview.events), 1)
         output = self.workspace.root / "day.ics"
-        with patch("shbs_calendar.gui.filedialog.asksaveasfilename", return_value=str(output)):
+        with patch("bcutils.gui.filedialog.asksaveasfilename", return_value=str(output)):
             self.app.export()
         self.assertEqual(output.read_bytes().count(b"BEGIN:VEVENT"), 1)
         for child in self.root.winfo_children():
             child.destroy()
-        from shbs_calendar.gui import CalendarApp
+        from bcutils.gui import CalendarApp
         self.app = CalendarApp(self.root, self.workspace)
         self.assertEqual(self.app.mode_var.get(), "Single day")
         self.assertEqual(self.app.anchor_var.get(), "2026-09-17")

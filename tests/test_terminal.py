@@ -2,11 +2,11 @@ import unittest
 from dataclasses import replace
 from datetime import date
 
-from shbs_calendar.app import DEFAULT_ROOT
-from shbs_calendar.models import Course
-from shbs_calendar.schedule import build_preview, preview_text
-from shbs_calendar.storage import load_semester
-from shbs_calendar.terminal import display_width, wrap_line
+from bcutils.app import DEFAULT_ROOT
+from bcutils.models import Course
+from bcutils.schedule import build_preview, preview_text
+from bcutils.storage import load_semester
+from bcutils.terminal import display_width, wrap_line
 
 
 class TerminalTests(unittest.TestCase):

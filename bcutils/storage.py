@@ -73,7 +73,7 @@ def atomic_write(path: Path, data: bytes, *, overwrite: bool = True, backup: boo
         raise DestinationExistsError(path)
     tmp = None
     try:
-        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".shbs-", delete=False) as stream:
+        with tempfile.NamedTemporaryFile(dir=path.parent, prefix=".bcutils-", delete=False) as stream:
             tmp = Path(stream.name)
             stream.write(data)
             stream.flush()

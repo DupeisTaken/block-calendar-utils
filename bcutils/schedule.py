@@ -111,6 +111,8 @@ def build_preview(semester: Semester, courses: list[Course], profile_id: str, fi
                 continue
             # Length-prefixed JSON-like components avoid ambiguous name joins.
             key = f"{len(semester.id)}:{semester.id}:{day}:{session.session_id}"
+            # This suffix is persisted event identity, not application branding.
+            # Keep it across project renames so existing exports retain their UIDs.
             uid = str(uuid5(namespace, key)) + "@shbs-calendar.local"
             # Calendar entries contain the selected name, times and location.
             # Keep scheduling explanations in the preview, not event notes.

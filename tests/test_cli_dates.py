@@ -4,10 +4,10 @@ import argparse
 import unittest
 from datetime import date
 
-from shbs_calendar.cli import command_settings, parser
-from shbs_calendar.cli_dates import parse_cli_date, parse_cli_range
-from shbs_calendar.models import CalendarError
-from shbs_calendar.storage import parse_date
+from bcutils.cli import command_settings, parser
+from bcutils.cli_dates import parse_cli_date, parse_cli_range
+from bcutils.models import CalendarError
+from bcutils.storage import parse_date
 
 
 TODAY = date(2026, 9, 18)
@@ -67,7 +67,7 @@ class CLIDateTests(unittest.TestCase):
                 parse_date(text)
 
     def test_public_shortcuts_use_initials_and_collisions_stay_long(self):
-        from shbs_calendar.cli_interface import COMMON, EXPORT_OPTIONS, ROOT_COMMANDS, GROUP_ACTIONS, DETAIL_OPTIONS
+        from bcutils.cli_interface import COMMON, EXPORT_OPTIONS, ROOT_COMMANDS, GROUP_ACTIONS, DETAIL_OPTIONS
         mappings = [COMMON, EXPORT_OPTIONS, *DETAIL_OPTIONS.values()]
         mappings += [{"--" + name: short for name, short in group.items()} for group in GROUP_ACTIONS.values()]
         mappings.append({flag: short for flag, (_, short) in ROOT_COMMANDS.items()})
@@ -84,7 +84,7 @@ class CLIDateTests(unittest.TestCase):
         self.assertIsNone(COMMON["--profile"])
 
     def test_public_shortcut_scopes_resolve_to_the_same_handlers(self):
-        from shbs_calendar.cli_interface import normalize
+        from bcutils.cli_interface import normalize
         cli = parser()
         # Exercise overlapping initials across action scopes, and options whose
         # public initial differs from the old parser's private compatibility alias.

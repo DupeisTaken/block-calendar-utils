@@ -14,10 +14,10 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from shbs_calendar.app import DEFAULT_ROOT, Workspace
-from shbs_calendar.cli import main
-from shbs_calendar.cli_dates import parse_cli_date
-from shbs_calendar.storage import load_semester
+from bcutils.app import DEFAULT_ROOT, Workspace
+from bcutils.cli import main
+from bcutils.cli_dates import parse_cli_date
+from bcutils.storage import load_semester
 
 
 class CLITests(unittest.TestCase):
@@ -70,7 +70,7 @@ class CLITests(unittest.TestCase):
             self.assertEqual(ctx.courses_path.read_bytes(), original_courses)
 
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory(prefix="shbs with spaces ")
+        self.temp = tempfile.TemporaryDirectory(prefix="bcutils with spaces ")
         self.root = Path(self.temp.name)
         shutil.copytree(DEFAULT_ROOT / "semesters", self.root / "semesters")
         self.workspace = Workspace(self.root)
@@ -81,7 +81,7 @@ class CLITests(unittest.TestCase):
     def run_cli(self, *args, answers=None):
         out, err = io.StringIO(), io.StringIO()
         # Yearless examples stay deterministic after the calendar year changes.
-        with redirect_stdout(out), redirect_stderr(err), patch("builtins.input", side_effect=answers if answers is not None else AssertionError("Unexpected input prompt")), patch("shbs_calendar.cli.date") as clock, patch("shbs_calendar.cli.parse_cli_date", side_effect=lambda value, **kw: parse_cli_date(value, today=kw.get("today", date(2026, 9, 18)))):
+        with redirect_stdout(out), redirect_stderr(err), patch("builtins.input", side_effect=answers if answers is not None else AssertionError("Unexpected input prompt")), patch("bcutils.cli.date") as clock, patch("bcutils.cli.parse_cli_date", side_effect=lambda value, **kw: parse_cli_date(value, today=kw.get("today", date(2026, 9, 18)))):
             clock.today.return_value = date(2026, 9, 18)
             try:
                 code = main(["--root", str(self.root), *args])
@@ -168,7 +168,7 @@ class CLITests(unittest.TestCase):
         self.assertIn(b"DTSTART:20260918T023000Z", output.read_bytes())
 
     def test_export_last_inspection_separate_commands_keeps_reviewed_events(self):
-        from shbs_calendar.inspection import inspection_path, load_inspection
+        from bcutils.inspection import inspection_path, load_inspection
         ctx = self.init()
         self.ok("-w", "--courses", "--set", "A", "数学课程")
         settings = self.workspace.settings_path.read_bytes()
@@ -203,7 +203,7 @@ class CLITests(unittest.TestCase):
         self.assertIn("DTSTART:20260918T025000Z", output.read_text())
 
     def test_last_inspection_preserves_activities_and_never_resolves_relative_dates_again(self):
-        from shbs_calendar.inspection import load_inspection
+        from bcutils.inspection import load_inspection
         ctx = self.init()
         self.ok("-w", "--activities", "--set", "club-tue", "Chess")
         self.ok("-i", "--next-week", "--cas", "--only", "C")
@@ -211,7 +211,7 @@ class CLITests(unittest.TestCase):
         self.assertEqual([event.title for event in preview.events], ["CAS", "Chess"])
         self.ok("-w", "--activities", "--disable", "club-tue")
         output = self.root / "fixed-week.ics"
-        with patch("shbs_calendar.app.Context.preview", side_effect=AssertionError("Must export the reviewed snapshot")):
+        with patch("bcutils.app.Context.preview", side_effect=AssertionError("Must export the reviewed snapshot")):
             self.ok("-e", "--last-inspect", "--output", str(output))
         data = output.read_text()
         self.assertIn("SUMMARY:Chess", data)
@@ -219,12 +219,12 @@ class CLITests(unittest.TestCase):
         self.assertTrue(all(event.uid in data for event in preview.events))
 
     def test_last_inspection_snapshot_save_failure_is_reported(self):
-        from shbs_calendar.inspection import inspection_path
-        from shbs_calendar.models import CalendarError
+        from bcutils.inspection import inspection_path
+        from bcutils.models import CalendarError
         ctx = self.init()
         self.ok("-i", "--day", "2026-09-18")
         original = inspection_path(ctx).read_bytes()
-        with patch("shbs_calendar.inspection.write_json", side_effect=CalendarError("Cannot remember inspection")):
+        with patch("bcutils.inspection.write_json", side_effect=CalendarError("Cannot remember inspection")):
             result = self.run_cli("-i", "--day", "2026-09-17", "-e", "--last-inspect")
         self.assertEqual(result.returncode, 2)
         self.assertIn("Cannot remember inspection", result.stderr)
@@ -232,7 +232,7 @@ class CLITests(unittest.TestCase):
         self.assertFalse((self.root / "exports").exists())
 
     def test_only_successful_dated_inspection_replaces_snapshot(self):
-        from shbs_calendar.inspection import inspection_path
+        from bcutils.inspection import inspection_path
         ctx = self.init()
         self.assertEqual(self.run_cli("-e", "--last-inspect").returncode, 2)
         self.ok("-i", "--day", "2026-09-18")
@@ -261,7 +261,7 @@ class CLITests(unittest.TestCase):
                 self.assertEqual(ctx.courses_path.read_bytes(), original)
 
     def test_last_inspection_is_scoped_by_profile_semester_and_identity(self):
-        from shbs_calendar.inspection import inspection_path
+        from bcutils.inspection import inspection_path
         ctx = self.init()
         self.ok("-i", "--day", "2026-09-18")
         self.ok("--profile", "other", "-w", "--init")
@@ -277,7 +277,7 @@ class CLITests(unittest.TestCase):
         self.assertIn("different profile", result.stderr)
 
     def test_last_inspection_corruption_is_actionable_and_never_exports(self):
-        from shbs_calendar.inspection import inspection_path, load_inspection
+        from bcutils.inspection import inspection_path, load_inspection
         ctx = self.init()
         self.ok("-i", "--day", "2026-09-18")
         path = inspection_path(ctx)
@@ -299,7 +299,7 @@ class CLITests(unittest.TestCase):
 
     def test_last_inspection_survives_real_process_boundary(self):
         self.init()
-        base = [sys.executable, "-m", "shbs-calendar", "--root", str(self.root)]
+        base = [sys.executable, "-m", "bcalendar-utils", "--root", str(self.root)]
         result = subprocess.run(base + ["-i", "--day", "2026-09-18", "--late"], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
         self.assertEqual(result.returncode, 0, result.stderr)
         output = self.root / "other-process.ics"
@@ -341,7 +341,7 @@ class CLITests(unittest.TestCase):
     def test_workflow_module_process_with_unicode_entry(self):
         self.init()
         output = self.root / "process.ics"
-        result = subprocess.run([sys.executable, "-m", "shbs-calendar", "--root", str(self.root),
+        result = subprocess.run([sys.executable, "-m", "bcalendar-utils", "--root", str(self.root),
                                  "-w", "--courses", "--edit", "A", "-e", "--day", "0920-0924", "--output", str(output)],
                                 input="数学\n", capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -350,7 +350,7 @@ class CLITests(unittest.TestCase):
 
     def test_no_arguments_is_help_without_files_or_questions(self):
         result = self.ok()
-        self.assertIn("First time using? run python -m shbs-calendar --docs", result.stdout)
+        self.assertIn("First time using? run python -m bcalendar-utils --docs", result.stdout)
         self.assertLessEqual(len(result.stdout.splitlines()), 12)
         self.assertEqual(result.stdout, self.ok("-h").stdout)
         self.assertEqual(result.stdout, self.ok("--help").stdout)
@@ -383,7 +383,7 @@ class CLITests(unittest.TestCase):
         self.assertFalse(output.with_suffix(".ics.bak").exists())
 
     def test_help_for_every_public_operation_never_requires_setup_or_writes(self):
-        from shbs_calendar.cli_interface import ROOT_COMMANDS, GROUP_ACTIONS
+        from bcutils.cli_interface import ROOT_COMMANDS, GROUP_ACTIONS
         paths = [[]]
         for flag, (name, _) in ROOT_COMMANDS.items():
             paths.append([flag])
@@ -482,7 +482,7 @@ class CLITests(unittest.TestCase):
         self.ok("e", "s", "0918", "-a")
         self.assertEqual(ctx.exceptions()[0].half_day, "no-afternoon")
         self.assertEqual(self.run_cli("p", "-d", "0918", "-a").returncode, 2)
-        for module, flag in [("shbs-calendar", "-a"), ("shbs_calendar", "--activities")]:
+        for module, flag in [("bcalendar-utils", "-a"), ("bcutils", "--activities")]:
             result = subprocess.run([sys.executable, "-m", module, "-r", str(self.root), flag], input="Chess\nRobotics\n", capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("tuesday 15:45–16:35", result.stdout)
@@ -612,7 +612,7 @@ class CLITests(unittest.TestCase):
         self.assertIn("1 events", self.ok("v", "-d", "9.18", "-e", "9.18", "Mon", "-i", "A", "-X", "T", "-l").stdout)
         self.ok("s", "n", "copy", "-c", "2026-27-s1", "-N", "Copy")
         self.ok("s", "n", "draft", "-b", "X", "-W", "mon=red", "-z", "+08:00", "-C", "12:00")
-        with patch("shbs_calendar.gui.launch") as launch:
+        with patch("bcutils.gui.launch") as launch:
             self.ok("g", "-s", "2026-27-s1", "-p", "student")
             launch.assert_called_once_with(self.root, semester_id="2026-27-s1", profile="student")
 
@@ -646,7 +646,7 @@ class CLITests(unittest.TestCase):
 
     def test_short_aliases_work_in_actual_module_processes(self):
         self.init()
-        for module in ("shbs-calendar", "shbs_calendar"):
+        for module in ("bcalendar-utils", "bcutils"):
             result = subprocess.run([sys.executable, "-m", module, "-r", str(self.root), "p", "-d", "20260917-20260918", "-e", "2026.9.18", "Mon"], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("2 events", result.stdout)
@@ -689,9 +689,9 @@ class CLITests(unittest.TestCase):
         for path in cases:
             with self.subTest(path=path):
                 compact, detailed = self.ok(*path, "--help"), self.ok(*path, "--docs")
-                self.assertIn("SHBS Calendar", compact.stdout)
-                self.assertIn("SHBS Calendar", detailed.stdout)
-                self.assertNotRegex(detailed.stdout, r"python -m shbs-calendar (?:courses|activities|semester|preview)\b")
+                self.assertIn("Block Calendar Utils", compact.stdout)
+                self.assertIn("Block Calendar Utils", detailed.stdout)
+                self.assertNotRegex(detailed.stdout, r"python -m bcalendar-utils (?:courses|activities|semester|preview)\b")
                 self.assertNotIn("(-P)", detailed.stdout)
                 self.assertFalse(self.workspace.local.exists())
 
@@ -709,7 +709,7 @@ class CLITests(unittest.TestCase):
 
     def test_public_entry_in_actual_module_process(self):
         self.init()
-        result = subprocess.run([sys.executable, "-m", "shbs-calendar", "-r" + str(self.root), "-p", "-d", "20260917:20260918", "-e", "2026.9.18", "Mon"], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
+        result = subprocess.run([sys.executable, "-m", "bcalendar-utils", "-r" + str(self.root), "-p", "-d", "20260917:20260918", "-e", "2026.9.18", "Mon"], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("2 events", result.stdout)
         self.assertNotIn("\x1b", result.stdout)
@@ -865,13 +865,13 @@ class CLITests(unittest.TestCase):
             self.init()
             self.ok("courses", "set", "A", "数学课程")
             self.ok("preview", "--dayrange", "2026-09-14")
-        for entry in ("shbs-calendar", "shbs_calendar"):
+        for entry in ("bcalendar-utils", "bcutils"):
             # Force a restrictive inherited stream encoding to model redirected
             # Windows terminals. The application must correct it itself.
             result = subprocess.run([sys.executable, "-m", entry, "--root", str(self.root), "--dayrange", "2026-09-14", "-o", str(self.root / (entry + ".ics"))], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT, env=os.environ | {"PYTHONIOENCODING": "ascii"})
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("1 events", result.stdout)
-        preview = subprocess.run([sys.executable, "-m", "shbs-calendar", "--root", str(self.root), "preview", "--dayrange", "2026-09-14"], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT, env=os.environ | {"PYTHONIOENCODING": "ascii"})
+        preview = subprocess.run([sys.executable, "-m", "bcalendar-utils", "--root", str(self.root), "preview", "--dayrange", "2026-09-14"], capture_output=True, text=True, encoding="utf-8", timeout=15, cwd=DEFAULT_ROOT, env=os.environ | {"PYTHONIOENCODING": "ascii"})
         self.assertEqual(preview.returncode, 0, preview.stderr)
         self.assertIn("数学课程", preview.stdout)
 
