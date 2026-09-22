@@ -16,7 +16,7 @@ from bcutils.cli_workflow import ALLOWED, STAGES, TARGETS, starts_workflow, spli
 class DocumentationTests(unittest.TestCase):
     def test_complete_shell_examples_use_supported_public_syntax(self):
         count = 0
-        for relative in ("README.md", "docs/setup.md", "docs/commands.md", "docs/command-catalogue.md", "docs/gui.md", "docs/configuration.md"):
+        for relative in ("README.md", "docs/setup.md", "docs/commands.md", "docs/command-catalogue.md", "docs/gui.md", "docs/configuration.md", "docs/timetables.md"):
             document = (DEFAULT_ROOT / relative).read_text(encoding="utf-8")
             # Only executable examples count; prose placeholders and historic
             # verification logs intentionally do not form a runnable tutorial.

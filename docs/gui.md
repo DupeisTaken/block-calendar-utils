@@ -22,11 +22,14 @@ If Python reports that `tkinter` is missing, use a Python installation with Tk s
 
 When no valid semester is selected, the **Start with your semester** screen appears:
 
-1. Choose a definition from the dropdown, such as `2026-27-s1`.
-2. Review its block list, weekly intervals, timing choices and optional activity slots.
-3. Click **Use this timetable**.
+1. Click **New timetable**. A fresh checkout has no installed semester.
+2. Enter an ID, display name, block keys, weekday patterns and school clock. Keep **Start blank**, or deliberately choose an optional example.
+3. Click **Create draft**, add your class intervals and CAS/club slots, then **Save timetable**. Use **Timing choices** for alternative durations.
+4. Close the editor, review the completed definition, then click **Use this timetable**.
 
-This remembers the semester and creates missing blank profile files. It does not replace saved names. Invalid or incomplete definitions cannot be selected. To add a different timetable, use [new-semester setup](configuration.md#a-new-semester), then close and reopen the GUI.
+This creates missing blank profile files and preserves existing names. Invalid/incomplete definitions cannot be selected. **Edit timetable** reopens an existing draft. [Timetable editor guide](timetables.md).
+
+In the main window, **Timetable → Edit this timetable** opens the school editor; **Timetable → New timetable** creates another definition. **Apply row** updates the in-memory draft; **Save timetable** validates and commits it. **Reload** discards unsaved edits after confirmation. Closing an unsaved editor offers to discard it. School saves refresh the current definition and require a fresh preview.
 
 The main window has four tabs: **01 Courses**, **02 Dates & preview**, **03 Exceptions**, and **04 CAS & clubs**. **Save selections** and **Export .ics** are in the bottom action bar and remain available across tabs.
 
@@ -89,6 +92,8 @@ An empty preview is valid. Check enabled names, activity inclusion, date range a
 The terminal's `--export --last-inspect` reuses only a dated CLI inspection. GUI preview/export continues to use the current GUI controls and does not replace that remembered CLI snapshot.
 
 ## Exceptions
+
+Choose **Yours** or **School** under **Save / remove in**. School rules apply to every profile; personal rules override them on the same date. Selecting a table row selects its source. **Save date** and **Remove date** affect only the selected source.
 
 Use **03 Exceptions** to save closures, makeup days, timing changes or time filters. The table labels each row **School** or **Yours**, with time filters and notes under **Details**. Your row replaces the school's entire rule on the same date.
 

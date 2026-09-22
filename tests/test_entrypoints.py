@@ -12,6 +12,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from tests.fixtures import install_example
 from bcutils.app import DEFAULT_ROOT
 from bcutils.ical import calendar_bytes
 from bcutils.models import Course
@@ -28,7 +29,7 @@ class EntrypointTests(unittest.TestCase):
         # Copy executable source and school definitions, never real local data.
         shutil.copytree(DEFAULT_ROOT / "bcutils", self.checkout / "bcutils",
                         ignore=shutil.ignore_patterns("__pycache__"))
-        shutil.copytree(DEFAULT_ROOT / "semesters", self.checkout / "semesters")
+        install_example(self.checkout)
         for name in ("bcalendar-utils.py", "bcutils-gui.pyw"):
             shutil.copy2(DEFAULT_ROOT / name, self.checkout / name)
 

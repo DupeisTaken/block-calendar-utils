@@ -130,6 +130,8 @@ def parser():
     semester = add_command(subs, "semester", parents=[common], help="Define, inspect and select a semester")
     actions = semester.add_subparsers(dest="action")
     add_command(actions, "list", parents=[common], help="List definitions and incomplete drafts")
+    template_list = actions.add_parser("templates", parents=[common], help="List optional example templates")
+    template_list.set_defaults(action="templates")
     for action in ("show", "use"):
         sub = add_command(actions, action, parents=[common], help="Display the timetable" if action == "show" else "Validate and select a timetable; create blank courses")
         sub.add_argument("id", help="Semester ID from --inspect --semesters")
@@ -138,11 +140,14 @@ def parser():
     source = new.add_mutually_exclusive_group(required=True)
     source.add_argument("--blocks", "-b", help="Comma-separated block names, e.g. X,Y,Z")
     source.add_argument("--copy", "-c", dest="copy_from", metavar="ID", help="Copy a semester definition; only --name may override a field")
+    source.add_argument("--template", metavar="ID", help="Start from an optional example; see --inspect --semesters --templates")
     new.add_argument("--name", "-N", help="Display name")
     new.add_argument("--timetable", "-t", type=Path, metavar="FILE", help="CSV with pattern,block,start,end columns")
     new.add_argument("--weekdays", "-W", help="e.g. mon=red,tue=blue; omitted days off. Default: Monday–Friday patterns")
     new.add_argument("--utc-offset", "-z", metavar="OFFSET", help="Fixed school clock, default +08:00; negative example: --utc-offset=-05:00")
     new.add_argument("--noon-cutoff", "-C", metavar="HH:MM", help="Half-day dividing time, default 12:30")
+    from .semester_cli import add_editor_arguments
+    add_editor_arguments(add_command(actions, "edit", parents=[common], help="Edit blocks, times, activities and timing choices; no options opens prompts"))
 
     courses = add_command(subs, "courses", parents=[common], help="Name classes or study periods for this semester")
     actions = courses.add_subparsers(dest="action")
@@ -183,8 +188,10 @@ def parser():
     add_command(actions, "list", parents=[common])
     sub = add_command(actions, "remove", parents=[common], help="Remove your exception; school rules may still apply")
     sub.add_argument("date", help="Date or inclusive range; school rules remain")
+    sub.add_argument("--school", action="store_true", help="Edit shared school rules instead of personal rules")
     sub = add_command(actions, "set", parents=[common], help="Save or replace unusual dates")
     sub.add_argument("date", help="Date or inclusive range; replaces your entire rule for each date")
+    sub.add_argument("--school", action="store_true", help="Edit shared school rules instead of personal rules")
     choice = sub.add_mutually_exclusive_group()
     choice.add_argument("--off", "-O", action="store_true", help="No events, including CAS and clubs")
     choice.add_argument("--follow", "-f", metavar="PATTERN", help="Timetable pattern, e.g. monday; see --inspect --semesters --show ID")
@@ -458,15 +465,23 @@ def exception_command(args, ctx):
         return
     from .cli_dates import expand_cli_range
     days = set(expand_cli_range(args.date, today=date.today()))
-    expected = digest(ctx.exceptions_path)
-    items = [item for item in ctx.exceptions() if item.date not in days]
+    from .storage import load_overrides, save_overrides
+    path = ctx.folder / "exceptions.csv" if getattr(args, "school", False) else ctx.exceptions_path
+    expected = digest(path)
+    items = [item for item in load_overrides(path, ctx.semester) if item.date not in days]
     items.extend(exception_changes(args))
-    ctx.save_exceptions(items, expected)
-    emit(f"Saved exceptions:\n  {ctx.exceptions_path}")
+    save_overrides(path, items, ctx.semester, expected)
+    emit(f"Saved exceptions:\n  {path}")
 
 
 def semester_command(args, workspace):
-    if args.action == "list":
+    if args.action == "templates":
+        from .semesters import templates
+        emit("Example templates\n")
+        for sid in templates():
+            emit(f"  {sid}")
+        emit("\n  Optional examples only. Review all blocks and times before use.\n  Create: --write --semesters --new ID --template TEMPLATE")
+    elif args.action == "list":
         emit("Semesters\n")
         ids = workspace.semesters()
         active = workspace.settings()["active_semester"]
@@ -481,11 +496,14 @@ def semester_command(args, workspace):
             emit("No semester definitions. Start with --write --semesters --new ID --blocks X,Y,Z.")
     elif args.action == "new":
         folder = create_semester(workspace, args.id, blocks=args.blocks, name=args.name, timetable=args.timetable,
-                                 copy_from=args.copy_from, weekdays=args.weekdays, utc_offset=args.utc_offset, noon_cutoff=args.noon_cutoff)
-        if args.timetable or args.copy_from:
+                                 copy_from=args.copy_from, weekdays=args.weekdays, utc_offset=args.utc_offset, noon_cutoff=args.noon_cutoff, template=args.template)
+        if args.timetable or args.copy_from or args.template:
             emit(f"Defined {args.id}. Review with --inspect --semesters --show {args.id}, then select with --write --semesters --use {args.id}.")
         else:
-            emit(f"Draft created. Fill {folder / 'timetable.csv'} with pattern,block,start,end rows.\nThen run --write --semesters --use {args.id}. The draft cannot export yet.")
+            emit(f"Draft created. Add its times with --write --semesters --edit {args.id}.\nThen run --write --semesters --use {args.id}. The draft cannot export yet.")
+    elif args.action == "edit":
+        from .semester_cli import edit_semester
+        edit_semester(args, workspace)
     elif args.action == "show":
         emit(describe_semester(safe_child(workspace.root / "semesters", args.id)))
     else:
@@ -545,6 +563,12 @@ def main(argv=None, *, prepared=None):
             exception_changes(args)
         settings = workspace.settings()
         sid = workspace.selected_semester(getattr(args, "semester", None))
+        if args.command == "exceptions" and getattr(args, "school", False):
+            from types import SimpleNamespace
+            from .storage import load_semester
+            folder = safe_child(workspace.root / "semesters", sid)
+            exception_command(args, SimpleNamespace(folder=folder, semester=load_semester(folder)))
+            return 0
         profile = getattr(args, "profile", None) or settings["profile"]
         create = args.command == "init" or (args.command in {"courses", "exceptions", "activities"} and args.action not in {"list", "path"})
         ctx = workspace.context(profile, sid, create=create)

@@ -5,6 +5,7 @@ import unittest
 from dataclasses import replace
 from datetime import date, datetime, timezone
 
+from tests.fixtures import example_semester
 from bcutils.app import DEFAULT_ROOT
 from bcutils.ical import calendar_bytes
 from bcutils.models import Course, DayOverride
@@ -16,7 +17,7 @@ from bcutils.storage import load_semester
 class InteropTests(unittest.TestCase):
     def test_roundtrip_unicode_escaping_dates_and_exceptions(self):
         from icalendar import Calendar
-        semester = load_semester(DEFAULT_ROOT / "semesters/2026-27-s1")
+        semester = example_semester()
         title = '高级数学, seminar; "A" \\ section\n' * 12
         courses = [Course(b, title if b == "A" else "Study " + b, "Room, 12; east", "Example Teacher", True, "toefl" if b == "T" else "") for b in semester.blocks]
         preview = build_preview(semester, courses, "472b895a-d1ac-4e5b-8203-02e2aa01d607", date(2026, 9, 14), date(2026, 10, 4), 20,

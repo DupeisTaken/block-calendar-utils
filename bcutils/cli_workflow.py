@@ -15,8 +15,8 @@ TARGETS = {token: name for flag, (name, short) in ROOT_COMMANDS.items()
            if name in {"courses", "activities", "semester", "exceptions", "init", "validate"}
            for token in (flag, short) if token and token not in STAGES}
 ALLOWED = {
-    "inspect": {"courses": {"list", "path"}, "activities": {"list"}, "semester": {"list", "show"}, "exceptions": {"list"}, "preview": {None}, "validate": {None}},
-    "write": {"courses": {"edit", "set", "clear", "enable", "disable", "import"}, "activities": {"edit", "set", "clear", "enable", "disable"}, "semester": {"use", "new"}, "exceptions": {"set", "remove"}, "init": {None}},
+    "inspect": {"courses": {"list", "path"}, "activities": {"list"}, "semester": {"list", "show", "templates"}, "exceptions": {"list"}, "preview": {None}, "validate": {None}},
+    "write": {"courses": {"edit", "set", "clear", "enable", "disable", "import"}, "activities": {"edit", "set", "clear", "enable", "disable"}, "semester": {"use", "new", "edit"}, "exceptions": {"set", "remove"}, "init": {None}},
     "export": {"export": {None}},
 }
 
@@ -84,7 +84,7 @@ not begin with a dash cannot be stage markers. Attached values remain opaque.
             stages[-1][1].append(token)
             if not equals:
                 for _ in range(arities.get(head, 0)):
-                    if index + 1 >= len(argv) or argv[index + 1].startswith("-") and not argv[index + 1][1:2].isdigit():
+                    if index + 1 >= len(argv) or argv[index + 1] != "-" and argv[index + 1].startswith("-") and not argv[index + 1][1:2].isdigit():
                         break
                     index += 1
                     stages[-1][1].append(argv[index])
@@ -167,6 +167,9 @@ def run_workflow(argv, root):
                 command_settings(args)
             elif args.command == "exceptions" and args.action != "list":
                 exception_changes(args)
+            elif args.command == "semester" and args.action == "edit":
+                from .semester_cli import preflight
+                preflight(args)
         for position, (translated, args, mode) in enumerate(prepared, 1):
             status = main(translated, prepared=args)
             if status:

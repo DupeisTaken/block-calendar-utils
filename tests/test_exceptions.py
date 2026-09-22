@@ -7,6 +7,7 @@ from dataclasses import replace
 from datetime import date, time
 from pathlib import Path
 
+from tests.fixtures import install_example
 from bcutils.app import DEFAULT_ROOT, Workspace
 from bcutils.exceptions import inline_overrides
 from bcutils.models import Activity, CalendarError, Course, DayOverride, Session
@@ -66,7 +67,7 @@ class ExceptionTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        shutil.copytree(DEFAULT_ROOT / "semesters", self.root / "semesters")
+        install_example(self.root)
         self.workspace = Workspace(self.root)
         self.ctx = self.workspace.use_semester("2026-27-s1")
         self.ctx.save_courses([Course(b, "Class " + b, enabled=True, timing_option="study_hall" if b == "T" else "") for b in self.ctx.semester.blocks], digest(self.ctx.courses_path))

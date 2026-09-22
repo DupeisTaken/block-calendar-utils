@@ -41,7 +41,7 @@ Use `--` before literal positional values that start with a dash, for example `-
 
 ```sh
 python -m bcalendar-utils -i --semesters
-python -m bcalendar-utils -i --semesters --show 2026-27-s1
+python -m bcalendar-utils -i --semesters --show mine
 python -m bcalendar-utils -i --courses
 python -m bcalendar-utils -i --courses --path
 python -m bcalendar-utils -i --activities
@@ -59,7 +59,7 @@ Preview-only options are `--width NUMBER` (20–300 columns; default terminal wi
 ## Write names and setup
 
 ```sh
-python -m bcalendar-utils -w --semesters --use 2026-27-s1
+python -m bcalendar-utils -w --semesters --use mine
 python -m bcalendar-utils -w --courses
 python -m bcalendar-utils -w --activities
 python -m bcalendar-utils -w --courses --set A "Mathematics" --room "Room 1"
@@ -231,15 +231,15 @@ python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --noclub --nocas -e --d
 `--root PATH` / `-r PATH` selects a folder containing `semesters/`, `local/` and default `exports/`; it defaults to this source checkout. The initial profile is `me`. `--profile NAME` selects a student for the workflow; `--semester ID` selects a valid timetable without activating it. `-w --semesters --use ID` remembers the semester and selected profile. Names contain 1–64 ASCII letters, digits, dashes or underscores, starting with a letter or digit; Windows device names are reserved.
 
 ```sh
-python -m bcalendar-utils --profile student-two -w --semesters --use 2026-27-s1 -w --courses
+python -m bcalendar-utils --profile student-two -w --semesters --use mine -w --courses
 python -m bcalendar-utils --profile student-two -i --day 9.18
 python -m bcalendar-utils -w --semesters --new spring --blocks X,Y,Z
-python -m bcalendar-utils -w --semesters --new autumn --copy 2026-27-s1
+python -m bcalendar-utils -w --semesters --new autumn --copy mine
 ```
 
 Name-entry/set operations create missing profile files. Inspecting student data and exporting require an initialized profile. Personal CSVs live in `local/profiles/<profile>/<semester>/`; stable identity lives in `local/profiles/<profile>/profile.json`.
 
-A new definition requires exactly one of `--blocks` or `--copy`. With `--blocks`, optional fields are `--name`, `--timetable FILE`, `--weekdays`, `--utc-offset` and `--noon-cutoff HH:MM`. With `--copy`, only `--name` may override a definition field; edit the copied files for other changes. Empty timetables are drafts and cannot be activated. Copies include school activity slots but omit school exceptions and student names. [CSV formats and new-semester setup](configuration.md#a-new-semester).
+A fresh checkout starts empty. A new definition requires exactly one of `--blocks`, `--copy` or `--template`. Use `-i --semesters --templates` to list optional examples. With `--blocks`, optional fields are `--name`, `--timetable FILE`, `--weekdays`, `--utc-offset` and `--noon-cutoff HH:MM`. With `--copy` or `--template`, only `--name` may override a definition field; use `-w --semesters --edit ID` for other changes. The interactive editor and repeatable session arguments cover blocks, school class/activity times and timing choices. [Timetable editor](timetables.md). Empty timetables are drafts and cannot be activated. Copies include school activity slots but omit school exceptions and student names. [CSV formats and new-semester setup](configuration.md#a-new-semester).
 
 ## When a command fails
 

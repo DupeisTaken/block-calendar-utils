@@ -8,6 +8,8 @@ Repository: [block-calendar-utils](https://github.com/DupeisTaken/block-calendar
 
 ## Start here
 
+Start with your own timetable: no semester is preinstalled. Create and edit blocks, class/club times and timing choices in the [CLI or GUI timetable editor](docs/timetables.md). Example templates are optional.
+
 1. [Set up your timetable and names](docs/setup.md).
 2. Follow the [terminal workflow guide](docs/commands.md) or the [GUI guide](docs/gui.md) to preview and export.
 3. Use the [command catalogue](docs/command-catalogue.md) to look up syntax, options and shortcuts.

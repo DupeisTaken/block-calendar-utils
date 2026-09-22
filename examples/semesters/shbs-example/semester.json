@@ -1,6 +1,6 @@
 {
-  "id": "2026-27-s1",
-  "name": "2026–27 · Semester 1",
+  "id": "shbs-example",
+  "name": "SHBS example · verify all blocks and times",
   "utc_offset_minutes": 480,
   "noon_cutoff": "12:30",
   "blocks": ["A", "B", "C", "D", "E", "F", "G", "S", "T", "El"],

@@ -41,6 +41,10 @@
 - A valid semester is selected explicitly before entering names. Definitions
   live in `semesters/<id>/`: `semester.json`, `timetable.csv`, `activities.csv`,
   and school `exceptions.csv`. Blocks, intervals and weekday patterns are data.
+- Fresh checkouts have no installed semesters. Users define their own blocks
+  and times through the CLI/GUI timetable editors. Bundled examples live in
+  `examples/semesters/` and require explicit template selection; never install
+  or activate one automatically. Editors must preserve dependent profile files.
 - Student courses, club names and personal exceptions live under
   `local/profiles/<profile>/<semester>/`. Club-name entry changes the profile's
   `activities.csv`; club times are predefined in the semester. There is no
@@ -64,7 +68,7 @@
   morning/afternoon cutoffs trim/split by default, or remove overlapping sessions
   with the remove option. Exception dates accept inclusive ranges. Inline rules apply only to this invocation; saved rules
   require `--schedule exceptions`. Personal/inline rows replace earlier rows.
-- This preset: CAS Monday 15:05–16:05; clubs Tuesday 15:45–16:35 and Wednesday
+- The optional SHBS example: CAS Monday 15:05–16:05; clubs Tuesday 15:45–16:35 and Wednesday
   15:50–16:40. Wednesday T is 15:05–15:45. Thursday T starts 15:45 and ends 16:25
   for study hall or 17:05 for TOEFL. P&B and meals are excluded.
 - Preview/export share one event pipeline. ICS uses UTC instants from the fixed

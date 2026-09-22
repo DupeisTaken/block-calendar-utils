@@ -164,13 +164,17 @@ python -m bcalendar-utils -i --day 2026-09-14:2026-09-18 --schedule exceptions
 | `-w --semesters --use ID` | Validate and activate a definition; create missing profile files. `--use` has short form `-u`. |
 | `-w --semesters --new ID --blocks BLOCKS` | Create a draft, optionally importing a timetable. `--new` has short form `-n`. |
 | `-w --semesters --new ID --copy SOURCE-ID` | Copy a valid definition and activity slots, without student selections or school exceptions. |
+| `-i --semesters --templates` | List optional example templates; fresh checkouts have no installed semester. |
+| `-w --semesters --new ID --template TEMPLATE` | Explicitly copy an example; review its times before use. |
+| `-w --semesters --edit ID` | Open the interactive timetable editor; or pass edit arguments below. |
 | `-w --init` | Create missing profile identity, course and personal-exception files; preserve existing files. |
 
 Arguments for `--new`:
 
 | Argument | Short | Purpose |
 | --- | --- | --- |
-| `--blocks BLOCKS` | `-b` | Unique comma-separated keys, e.g. `X,Y,Z`; choose this or `--copy`. |
+| `--blocks BLOCKS` | `-b` | Unique comma-separated keys, e.g. `X,Y,Z`; choose this, `--copy`, or `--template`. |
+| `--template ID` | — | Optional example source, e.g. `shbs-example`; only `--name` overrides template fields. |
 | `--copy SOURCE-ID` | `-c` | Copy a definition; only `--name` can override copied fields. |
 | `--name TEXT` | `-n` | Display name; default: new ID. |
 | `--timetable FILE` | `-t` | Import CSV columns: pattern, block, start, end. |
@@ -179,6 +183,26 @@ Arguments for `--new`:
 | `--noon-cutoff HH:MM` | — | Whole-session half-day boundary; default `12:30`. |
 
 Existing semester folders cannot be replaced. Empty timetables remain drafts and cannot be activated. See [definition setup](configuration.md#a-new-semester).
+
+Arguments for `--edit ID` (one validated save; no edit arguments opens prompts):
+
+| Argument | Short | Purpose |
+| --- | --- | --- |
+| `--name TEXT` | `-n` | Change display name. |
+| `--blocks BLOCKS` | `-b` | Replace the complete block-key list. |
+| `--weekdays MAPPING` | — | Replace weekday-to-pattern mappings. |
+| `--utc-offset OFFSET` | `-u` | Change the fixed school clock. |
+| `--noon-cutoff HH:MM` | — | Change the default half-day cutoff. |
+| `--session ID PATTERN BLOCK START END` | `-s` | Add/replace one class interval; repeatable. |
+| `--activity ID PATTERN ACTIVITY KIND START END` | `-a` | Add/replace a `cas` or `club` interval; repeatable. |
+| `--timing-option BLOCK CHOICE SESSION START END` | `-t` | Add/replace a duration override; `-` inherits a time. A session of `-` with both times `-` creates a choice without overrides. |
+| `--remove-session ID` | — | Remove a class interval; repeatable. |
+| `--remove-activity ID` | — | Remove an activity interval; repeatable. |
+| `--remove-timing BLOCK CHOICE` | — | Remove a complete timing choice; repeatable. |
+
+The editor rejects invalid definitions, external changes and edits that invalidate existing profiles. It preserves session IDs and keeps definition backups. [Interactive, CMD and GUI examples](timetables.md).
+
+Exception `--set` and `--remove` additionally accept `--school` to edit the shared school rules. Omit it for personal rules; personal rows still override school rows for the same date.
 
 ## Export
 

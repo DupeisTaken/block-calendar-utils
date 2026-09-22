@@ -10,6 +10,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.fixtures import install_example, example_semester
 from bcutils.app import DEFAULT_ROOT, Workspace
 from bcutils.ical import calendar_bytes
 from bcutils.models import CalendarError, Course, DayOverride, Session
@@ -31,7 +32,7 @@ EXPECTED = [
 
 class CoreTests(unittest.TestCase):
     def setUp(self):
-        self.sem = load_semester(DEFAULT_ROOT / "semesters/2026-27-s1")
+        self.sem = example_semester()
         self.courses = [Course(b, f"Example {b}", enabled=True, timing_option="study_hall" if b == "T" else "") for b in self.sem.blocks]
 
     def preview(self, **kwargs):
@@ -169,7 +170,7 @@ class StorageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        shutil.copytree(DEFAULT_ROOT / "semesters", self.root / "semesters")
+        install_example(self.root)
         self.workspace = Workspace(self.root)
         self.ctx = self.workspace.context("student", "2026-27-s1", create=True)
 

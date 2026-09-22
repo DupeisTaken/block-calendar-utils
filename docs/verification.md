@@ -1,5 +1,15 @@
 # Verification record
 
+## Timetable editors and blank first launch — 2026-09-22
+
+The full **166-test suite passed** with native Tk and independent calendar-parser checks enabled. A subsequent Windows CMD integration test also passed, bringing exercised coverage to **167 tests**; targeted documentation and save-rollback checks passed after the final updates. Tests use temporary synthetic roots and explicitly install an example fixture, never a user's semester or profile files.
+
+New coverage exercises blank startup, opt-in templates, interactive and argument-based school editing, creation from the GUI, classes and CAS/club slots, timing choices, Unicode input, school/personal rule precedence, malformed batches, help without writes, cancellation/EOF, stale saves, dependent-profile protection, generated session IDs, I/O rollback, fixed-clock exports and active-GUI refresh. The actual CMD test uses caret continuations and redirected Unicode input through both module entry points.
+
+Reviewed screenshots from `tools/verify_gui.py --timetable new`, `--timetable classes`, `--timetable activities`, and `--timetable timing --scale 1.6`, plus the normal main-window screenshots. `tools/verify_preview.py --help-page timetable` captures the editor's CLI help. Controls were readable and remained within their windows. Each capture used one short-lived native window and synthetic data; captures are under gitignored `local/qa/`.
+
+Work was verified in `D:\Working Directory\block-calendar-utils`, using the existing local verification interpreter at `D:\Working Directory\shbs-calendar-exports\.venv-verify\Scripts\python.exe` with `BCUTILS_GUI_TESTS=1` and `PYTHONDONTWRITEBYTECODE=1`. No global packages were installed. The old checkout and its personal data were preserved. The example moved to `examples/semesters/shbs-example`; no semester is preinstalled. Definition saves use per-file atomic replacement, backups and rollback on caught write failures, not a crash-atomic multi-file transaction. Native macOS execution and actual calendar-client reimports remain unverified.
+
 ## Project and command rename — 2026-09-21
 
 **151 tests passed**, including native Tk tests and the independent calendar parser. The repository is `block-calendar-utils`; the shared package is `bcutils/`. Both `python -m bcalendar-utils` and `python -m bcutils` call the same CLI. The Windows GUI launcher is `bcutils-gui.pyw`. The obsolete implementation plan was removed; the maintained setup, command, GUI and architecture guides provide the current documentation.

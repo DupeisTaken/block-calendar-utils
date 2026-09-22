@@ -28,16 +28,18 @@ EXPORT_OPTIONS = {
     "--last-inspect": "-l",
 }
 GROUP_ACTIONS = {
-    "semester": {"list": "-l", "show": "-s", "use": "-u", "new": "-n"},
+    "semester": {"list": "-l", "show": "-s", "use": "-u", "new": "-n", "edit": None, "templates": "-t"},
     "courses": {"list": "-l", "path": "-p", "edit": "-e", "set": "-s", "clear": "-c", "enable": None, "disable": "-d", "import": "-i"},
     "activities": {"list": "-l", "edit": "-e", "set": "-s", "clear": "-c", "enable": None, "disable": "-d"},
     "exceptions": {"list": "-l", "set": "-s", "remove": None},
 }
 DETAIL_OPTIONS = {
-    ("semester", "new"): {"--blocks": "-b", "--copy": "-c", "--name": "-n", "--timetable": "-t", "--weekdays": "-w", "--utc-offset": "-u", "--noon-cutoff": None},
+    ("exceptions", "remove"): {"--school": None},
+    ("semester", "edit"): {"--name": "-n", "--blocks": "-b", "--weekdays": None, "--utc-offset": "-u", "--noon-cutoff": None, "--session": "-s", "--activity": "-a", "--timing-option": "-t", "--remove-session": None, "--remove-activity": None, "--remove-timing": None},
+    ("semester", "new"): {"--blocks": "-b", "--copy": "-c", "--template": None, "--name": "-n", "--timetable": "-t", "--weekdays": "-w", "--utc-offset": "-u", "--noon-cutoff": None},
     ("courses", "set"): {"--room": None, "--teacher": "-t", "--timing": None},
     ("activities", "set"): {"--room": None},
-    ("exceptions", "set"): {"--off": "-o", "--follow": "-f", "--late": "-l", "--normal": "-n", "--no-morning": None, "--no-afternoon": None, "--shift": "-s", "--half-day": None, "--note": None, "--blank-hours": "-b", "--morning-cutoff": "-m", "--afternoon-cutoff": "-a", "--overlap": None},
+    ("exceptions", "set"): {"--school": None, "--off": "-o", "--follow": "-f", "--late": "-l", "--normal": "-n", "--no-morning": None, "--no-afternoon": None, "--shift": "-s", "--half-day": None, "--note": None, "--blank-hours": "-b", "--morning-cutoff": "-m", "--afternoon-cutoff": "-a", "--overlap": None},
 }
 
 
@@ -57,7 +59,7 @@ def public_path(path, mode=None):
     if target in {"export", "gui"}:
         return "--" + target
     if mode is None:
-        mode = "inspect" if operations and operations[0] in {"list", "path", "show"} or not operations and target in {"semester", "exceptions"} else "write"
+        mode = "inspect" if operations and operations[0] in {"list", "path", "show", "templates"} or not operations and target in {"semester", "exceptions"} else "write"
     if operations == ["list"] and mode == "inspect":
         operations = []
     return " ".join(["--" + mode, "--semesters" if target == "semester" else "--" + target] + ["--" + item for item in operations])
@@ -142,7 +144,7 @@ def normalize(argv, root):
         if action and not equals:
             count = 0 if action.nargs == 0 else action.nargs if isinstance(action.nargs, int) else 1
             for _ in range(count):
-                if index >= len(argv) or argv[index].startswith("--") or (argv[index].startswith("-") and not argv[index][1:2].isdigit()):
+                if index >= len(argv) or argv[index].startswith("--") or (argv[index] != "-" and argv[index].startswith("-") and not argv[index][1:2].isdigit()):
                     break
                 result.append(argv[index])
                 index += 1
@@ -198,7 +200,7 @@ def render_help(parser, detailed=False):
     if not path:
         lines = [heading, "", "  --inspect / -i        View saved data or preview dates", "  --write / -w          Save course names, clubs or date rules", "  --export / -e         Write an .ics calendar", "", "  python -m bcalendar-utils -i --day 0920-0924", "  python -m bcalendar-utils -w --courses -e --day 0920-0924", "", "  First time using? run python -m bcalendar-utils --docs"]
         if detailed:
-            lines = [heading, "", "Start here", "", "  python -m bcalendar-utils -i --semesters --show 2026-27-s1", "  python -m bcalendar-utils -w --semesters --use 2026-27-s1", "  python -m bcalendar-utils -w --courses", "  python -m bcalendar-utils -w --activities", "  python -m bcalendar-utils -i --day 0920-0924", "  python -m bcalendar-utils -e --last-inspect", "", "Actions", ""]
+            lines = [heading, "", "Start here", "", "  No timetable is installed automatically. Enter your own blocks and times.", "  python -m bcalendar-utils -w --semesters --new mine --blocks X,Y,Z", "  python -m bcalendar-utils -w --semesters --edit mine", "  python -m bcalendar-utils -i --semesters --show mine", "  python -m bcalendar-utils -w --semesters --use mine", "  python -m bcalendar-utils -w --courses", "  python -m bcalendar-utils -w --activities", "  python -m bcalendar-utils -i --day 0920-0924", "  python -m bcalendar-utils -e --last-inspect", "", "Actions", ""]
             lines += rows([("--inspect / -i", "View timetables, saved CSV entries or dated events"), ("--write / -w", "Save names, selections or date rules to local files"), ("--export / -e", "Write an .ics snapshot for selected dates")])
             lines += ["Sequential actions", "", "  python -m bcalendar-utils -w --courses -i --day 0920-0924", "  python -m bcalendar-utils -w --courses -e --day 0920-0924", "", "  Actions run left to right. Syntax is checked before any write or prompt.", "  Each write saves before the next action. Failure or cancellation stops later", "  actions; completed saves stay saved. Help anywhere runs no actions.", "  --root PATH, --profile NAME and --semester ID apply to the whole workflow.", ""]
             lines += ["  File exists? Add --overwrite to the same export command to replace it.", '  To keep it, use --output "exports/another-name.ics" with an unused name.', ""]
@@ -213,6 +215,8 @@ def render_help(parser, detailed=False):
         mode = mode or ("inspect" if path[0] in {"semester", "exceptions"} else "write")
         descriptions = {"list": "View saved entries", "edit": "Enter names; save once", "set": "Save or replace one entry", "clear": "Clear name and disable selection", "enable": "Enable an existing named selection", "disable": "Keep a name but exclude it", "path": "Show the CSV location", "import": "Replace all courses from a CSV; back up old file", "show": "Review a timetable", "use": "Select timetable; create missing profile files", "new": "Create a timetable; requires --blocks or --copy", "remove": "Remove your saved date rule; school rule may remain"}
         descriptions["list"] = {"semester": "List definitions, including drafts", "courses": "Show block keys, names and enabled state", "activities": "Show slot IDs, names and times", "exceptions": "Show school and personal rules with their source"}[path[0]]
+        if path[0] == "semester":
+            descriptions.update(edit="Edit blocks, class/club times and timing choices", new="Create your own draft, copy, or opt-in example", templates="List optional example templates")
         names = {name: short for name, short in GROUP_ACTIONS.get(path[0], {}).items() if name in ALLOWED[mode].get(path[0], {})}
         lines += rows([(" ".join(["--" + name] + positional_labels(subcommands[name])), descriptions[name]) for name in names])
         if path[0] == "activities":
@@ -254,6 +258,8 @@ def render_help(parser, detailed=False):
     elif path[0] in {"preview", "validate"}:
         lines += ["  Supply dates: --day DATE[:DATE], --week DATE, --this-week,", "  --next-week, or both --first-date DATE and --last-date DATE.", ""]
     if detailed:
+        if path == ("semester", "edit"):
+            lines += ["  With no edit arguments, open a draft session: settings, class, activity,", "  timing, remove-class, remove-activity, remove-timing, show, save, cancel.", "  Enter keeps a field. Ctrl+C/EOF cancels. Save validates the entire draft.", "  Session IDs update existing intervals; new IDs add them. Keep IDs stable.", "  All argument edits save together. Referenced profile keys must stay valid.", "  Use - for inherited timing values; session - creates an unmodified choice.", ""]
         if subcommands:
             lines += ["  Add --docs after an operation to see its arguments.", "  Example: " + command + " --" + next(iter(names)) + " --docs", ""]
         elif parser.epilog:

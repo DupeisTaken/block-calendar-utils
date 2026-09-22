@@ -2,7 +2,7 @@
 
 [README](../README.md) · [First setup](setup.md) · [Command catalogue](command-catalogue.md) · [GUI guide](gui.md)
 
-Each terminal command reloads the semester definition. After editing `semesters/<id>/`, close and reopen the GUI to load the changed definition. Student files are reread for previews and exports; to refresh editable GUI fields, click **Reload CSV** on Courses (this also reloads clubs and exceptions). Neither interface maintains a separate database.
+Each terminal command reloads the semester definition. Timetable saves inside the GUI refresh its definition immediately. After external edits to `semesters/<id>/`, reopen the GUI to load the changed definition. Student files are reread for previews and exports; to refresh editable GUI fields, click **Reload CSV** on Courses (this also reloads clubs and exceptions). Neither interface maintains a separate database.
 
 Paths below are relative to the data root: the source checkout by default, or the folder supplied with `--root PATH`. Inline command fragments follow `python -m bcalendar-utils` (use `python3` on macOS). See the [command guide](commands.md) for complete commands, export destinations and overwrite instructions.
 
@@ -63,7 +63,7 @@ CAS's name must be blank and its exported title is always `CAS`; `--cas` opts it
 
 For one export, use inline rules, for example `python -m bcalendar-utils --export --day 9.14:9.18 --exception 9.18 Mon --exception 9.18 no-afternoon`. Inline weekday/timing/half-day/time-window rules compose on the same date without writing files. Saved files are read during CLI preview/export only with `--schedule exceptions`; inline rules then replace the saved row for their date in full. The `--inspect --exceptions`, `--write --exceptions --set` and `--write --exceptions --remove` commands read saved rules for inspection/editing independently of that export option.
 
-Shared path: `semesters/<semester>/exceptions.csv`.
+Shared path: `semesters/<semester>/exceptions.csv`. Edit using `--write --exceptions --set/--remove ... --school`, or select **School** in the GUI Exceptions source control.
 Personal path: `local/profiles/<profile>/<semester>/exceptions.csv`.
 
 The examples below illustrate the format; they are **not a confirmed school calendar**:
@@ -141,15 +141,17 @@ The sequence is: select actual day's pattern → apply course timing option → 
 
 ## A new semester
 
-1. Run `python -m bcalendar-utils --write --semesters --new 2026-27-s2 --blocks X,Y,Z`, supplying the actual block names. This creates a draft with an empty timetable. Alternatively pass `--timetable path.csv` to import complete rows immediately; invalid imports leave no installed folder.
-2. Fill `timetable.csv` with the actual pattern/block/start/end arrangements. The default `semester.json` maps Monday–Friday to `monday`–`friday` and uses UTC+08:00. Set `--weekdays mon=red,tue=blue` or `--utc-offset +08:00` when creating a different mapping/clock. Omitted weekdays have no classes. You may also edit the JSON, including optional timing choices.
-3. Run `--inspect --semesters --show 2026-27-s2` and compare the entire timetable to the school source. `--inspect --semesters` reports incomplete definitions as drafts/invalid. A draft cannot export.
-4. Run `--write --semesters --use 2026-27-s2`, or review and select the valid definition in the GUI. Activation validates the definition and creates a separate blank `courses.csv`. Previous selections remain available. Use `--write --courses --edit` or `--write --courses --set X "Course name"` to select courses.
-5. Run `--inspect --week 2027-02-22` (substitute a suitable date) and inspect special dates. Each export needs its own dates; a whole-semester calendar is never assumed.
+No semester is installed by default. Use `--write --semesters --new mine --blocks X,Y,Z`, then `--write --semesters --edit mine` to enter settings, class intervals, CAS/club slots and timing choices without editing CSV or JSON. In the GUI choose **New timetable**, then complete the form and session tabs. [Full editor guide](timetables.md).
 
-To deliberately copy an existing arrangement, use `--write --semesters --new 2026-27-s2 --copy 2026-27-s1`. This copies the definition and timing options, sets the new ID/name, and creates an empty school exception file. It never copies student selections or activates the result. Edit the copied files before selection. Existing semester folders are never replaced by `--write --semesters --new`.
+Save validates the whole definition, school exceptions and every existing profile against the proposed keys and choices. Referenced blocks, activities or timing choices cannot be removed if doing so would invalidate a profile; create a separate semester for a new arrangement. Student files are never rewritten by the timetable editor. Files changed outside the editor require a reload. Successful edits retain previous definition files as `.bak` backups.
 
-The original workbook is a reference. No runtime spreadsheet dependency or student mapping data is committed.
+Review with `--inspect --semesters --show mine`, then activate with `--write --semesters --use mine`. Only activation creates missing blank profile files. New blocks are blank selections; no names are guessed.
+
+To copy your own valid arrangement, use `--write --semesters --new next --copy mine`. To opt in to a bundled example, first list `--inspect --semesters --templates`, then use `--write --semesters --new mine --template shbs-example`. The example lives under `examples/semesters/`, is not tied to a confirmed school year and is never automatically installed. Copies/templates include school activity slots and timing choices, but omit exceptions and student selections. Neither action activates the result.
+
+Exactly one of `--blocks`, `--copy` or `--template` is required. With `--blocks`, optional `--timetable FILE` remains available for importing an existing CSV, and `--weekdays`, `--utc-offset`, `--noon-cutoff` set initial defaults. With `--copy`/`--template`, only `--name` overrides a field; use the editor for further changes. Existing semester folders are never replaced.
+
+The file formats above remain available for advanced imports; using the CLI/GUI editors requires no spreadsheet application.
 
 ## Profiles and files
 

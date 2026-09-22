@@ -6,7 +6,7 @@ This guide takes you from the downloaded project folder to your first calendar f
 
 ## Open the project
 
-Use Python **3.11 or newer**. Open a terminal in the folder containing `README.md`, `bcalendar-utils.py` and `semesters/`. Keep those files together: the app runs directly from the source folder and needs no package installation.
+Use Python **3.11 or newer**. Open a terminal in the folder containing `README.md`, `bcalendar-utils.py` and `bcutils/`. Keep those files together: the app runs directly from the source folder and needs no package installation.
 
 On Windows, check Python with:
 
@@ -32,18 +32,25 @@ Choose either route:
 
 ## Review and select a timetable
 
-```sh
-python -m bcalendar-utils -i --semesters
-python -m bcalendar-utils -i --semesters --show 2026-27-s1
-```
-
-Compare the supplied definition with your school timetable, including blocks, activity slots and special T timings. Select it only after reviewing it:
+A fresh checkout has **no installed semester**. Define your own block keys and times; no school or year is assumed. Start a draft and open the terminal editor:
 
 ```sh
-python -m bcalendar-utils -w --semesters --use 2026-27-s1
+python -m bcalendar-utils -w --semesters --new mine --blocks X,Y,Z
+python -m bcalendar-utils -w --semesters --edit mine
 ```
 
-This remembers the semester and creates missing blank files for the initial profile, `me`. Existing names are preserved. If you need different blocks or times, follow [new-semester setup](configuration.md#a-new-semester) first; an empty draft cannot be selected.
+Use `settings` to set weekday patterns and the school clock. Use `class` to add each interval, `activity` for CAS/club meeting slots, and `timing` for alternative durations. `show` reviews the draft; `save` validates and saves everything together. `cancel`, Ctrl+C or EOF discards unsaved edits. The GUI has the same controls under **New timetable**. [Editor walkthrough and CMD examples](timetables.md).
+
+Review the completed timetable, then activate it:
+
+```sh
+python -m bcalendar-utils -i --semesters --show mine
+python -m bcalendar-utils -w --semesters --use mine
+```
+
+This remembers the semester and creates missing blank files for the initial profile, `me`. Existing names are preserved. An incomplete draft cannot be selected.
+
+Optional examples are listed with `-i --semesters --templates`. Explicitly choose `--new mine --template shbs-example` instead of `--blocks` to copy the SHBS example. It is not a confirmed timetable for any year; review and edit its times before use.
 
 For another student, add `--profile student-two` to the selection command. That profile is then remembered. [Profiles and data locations](configuration.md#profiles-and-files).
 
@@ -53,7 +60,7 @@ For another student, add `--profile student-two` to the selection command. That 
 python -m bcalendar-utils -w --courses
 ```
 
-Name each block you attend. Leave unused blocks blank; name study periods **Study Hall** if you want them in the calendar. For T, choose `study-hall` or `toefl` when prompted—the name alone does not select its duration.
+Name each block you attend. Leave unused blocks blank; name study periods **Study Hall** if you want them in the calendar. For any block with timing choices, select its duration when prompted—the course name alone does not choose times.
 
 During entry, **Enter** keeps the current value, **-** clears it, and **Ctrl+C** or EOF cancels the unsaved batch. The whole batch saves once. Existing room/teacher fields and disabled selections are preserved when keeping a name.
 
@@ -63,7 +70,7 @@ For clubs, run:
 python -m bcalendar-utils -w --activities
 ```
 
-Enter club names for the predefined slots. This saves names, not meeting times. CAS has a fixed title and is never prompted for. You can skip this step if you do not attend clubs.
+Enter club names for the slots you defined in the timetable editor. This saves names, not meeting times. CAS has a fixed title and is never prompted for. You can skip this step if you do not attend clubs.
 
 Check the saved entries:
 

@@ -10,6 +10,12 @@ from .storage import (EXCEPTION_FIELDS, atomic_write, csv_bytes, load_overrides,
 
 DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 SIMPLE_FIELDS = ("pattern", "block", "start", "end")
+TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "examples" / "semesters"
+
+
+def templates():
+    """Examples are opt-in sources, never installed or activated on startup."""
+    return sorted(p.parent.name for p in TEMPLATE_ROOT.glob("*/semester.json"))
 
 
 def weekday_map(value):
@@ -36,16 +42,18 @@ def utc_minutes(value):
 
 
 def create_semester(workspace, sid, *, blocks=None, name=None, timetable=None,
-                    copy_from=None, weekdays=None, utc_offset=None, noon_cutoff=None):
+                    copy_from=None, weekdays=None, utc_offset=None, noon_cutoff=None, template=None):
     """Stage supplied data together; a failed import cannot leave a half-definition."""
     parent = workspace.root / "semesters"
     target = safe_child(parent, sid)
     if target.exists():
         raise CalendarError(f"Semester {sid!r} already exists. Edit its files or choose a new ID.")
-    if copy_from:
+    if copy_from and template:
+        raise CalendarError("Choose either --copy or --template.")
+    if copy_from or template:
         if any(value is not None for value in (blocks, timetable, weekdays, utc_offset, noon_cutoff)):
-            raise CalendarError("--copy cannot be combined with --blocks, --timetable, --weekdays, --utc-offset or --noon-cutoff.")
-        source = safe_child(parent, copy_from)
+            raise CalendarError("--copy/--template cannot be combined with --blocks, --timetable, --weekdays, --utc-offset or --noon-cutoff.")
+        source = safe_child(TEMPLATE_ROOT if template else parent, template or copy_from)
         load_semester(source)
         config = read_json(source / "semester.json")
         data = (source / "timetable.csv").read_bytes()
@@ -64,9 +72,9 @@ def create_semester(workspace, sid, *, blocks=None, name=None, timetable=None,
         write_json(staged / "semester.json", config)
         atomic_write(staged / "timetable.csv", data)
         atomic_write(staged / "exceptions.csv", csv_bytes(EXCEPTION_FIELDS, []))
-        if copy_from and (source / "activities.csv").exists():
+        if (copy_from or template) and (source / "activities.csv").exists():
             atomic_write(staged / "activities.csv", (source / "activities.csv").read_bytes())
-        if timetable or copy_from:
+        if timetable or copy_from or template:
             load_semester(staged)
         staged.rename(target)
     return target
@@ -81,10 +89,17 @@ def describe_semester(folder):
     lines.append("Timetable:")
     for pattern in semester.patterns:
         lines.append(f"  {pattern}")
-        lines += [f"    {s.start:%H:%M}–{s.end:%H:%M}  {s.block}" for s in sorted(semester.sessions, key=lambda s: s.start) if s.pattern == pattern]
+        lines += [f"    {s.start:%H:%M}–{s.end:%H:%M}  {s.block} · {s.session_id}" for s in sorted(semester.sessions, key=lambda s: s.start) if s.pattern == pattern]
     for block, choices in semester.timing_options.items():
         lines.append(f"Timing choices for {block}: " + ", ".join(key.replace("_", "-") for key in choices))
+        by_id = {s.session_id: s for s in semester.sessions}
+        for choice, overrides in choices.items():
+            for sid, times in overrides.items():
+                session = by_id[sid]
+                start = times.get("start", session.start.strftime("%H:%M"))
+                end = times.get("end", session.end.strftime("%H:%M"))
+                lines.append(f"    {choice.replace('_', '-')} · {sid}: {start}–{end}")
     if semester.activity_sessions:
-        lines.append("Optional activities (off by default):")
-        lines += [f"  {s.block} ({semester.activities[s.block]}) · {s.pattern} {s.start:%H:%M}–{s.end:%H:%M}" for s in semester.activity_sessions]
+        lines.append("Optional activities (named clubs on; CAS opt-in):")
+        lines += [f"  {s.block} ({semester.activities[s.block]}) · {s.pattern} {s.start:%H:%M}–{s.end:%H:%M} · {s.session_id}" for s in semester.activity_sessions]
     return "\n".join(lines)

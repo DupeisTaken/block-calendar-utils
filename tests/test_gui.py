@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.fixtures import install_example
 from bcutils.app import DEFAULT_ROOT, Workspace
 from bcutils.ical import calendar_bytes
 from bcutils.models import CalendarError
@@ -29,7 +30,7 @@ class GUITests(unittest.TestCase):
         from bcutils.gui import CalendarApp
         self.temp = tempfile.TemporaryDirectory()
         root_path = Path(self.temp.name)
-        shutil.copytree(DEFAULT_ROOT / "semesters", root_path / "semesters")
+        install_example(root_path)
         self.workspace = Workspace(root_path)
         self.workspace.use_semester("2026-27-s1")
         self.app = CalendarApp(self.root, self.workspace)
@@ -107,7 +108,7 @@ class GUITests(unittest.TestCase):
         for child in self.root.winfo_children():
             child.destroy()
         workspace = Workspace(self.workspace.root / "fresh")
-        shutil.copytree(DEFAULT_ROOT / "semesters", workspace.root / "semesters")
+        install_example(workspace.root)
         setup = SemesterSetup(self.root, workspace)
         self.assertEqual(str(setup.use_button["state"]), "disabled")
         self.assertEqual(setup.semester_var.get(), "")

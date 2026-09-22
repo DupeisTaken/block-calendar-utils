@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tests.fixtures import install_example
 from bcutils.app import DEFAULT_ROOT, Workspace
 from bcutils.cli import main
 from bcutils.models import Course
@@ -23,7 +24,7 @@ def capture(syntax=False, entry=False, help_page=None, workflow=False):
     from PIL import ImageGrab
     with tempfile.TemporaryDirectory(prefix="bcutils-preview-") as tmp:
         workspace = Workspace(Path(tmp))
-        shutil.copytree(DEFAULT_ROOT / "semesters", workspace.root / "semesters")
+        install_example(workspace.root)
         ctx = workspace.use_semester("2026-27-s1")
         names = ["Chemistry", "Study Hall", "Advanced Mathematics", "World History", "Physics", "Music Theory", "English Language", "Physical Education", "Study Hall", "Creative Writing"]
         ctx.save_courses([Course(b, name, enabled=True, timing_option="study_hall" if b == "T" else "") for b, name in zip(ctx.semester.blocks, names)], digest(ctx.courses_path))
@@ -47,7 +48,7 @@ def capture(syntax=False, entry=False, help_page=None, workflow=False):
                 # below with Tk tags. No native console or user data is changed.
                 with patch.object(output, "isatty", return_value=True), patch.dict(os.environ, {}, clear=True), patch("bcutils.help_style.windows_vt", side_effect=lambda _: nullcontext(True)):
                     try:
-                        route = ["--write", "--exceptions"] if help_page == "exceptions" else ["--" + help_page] if help_page != "overview" else []
+                        route = ["--write", "--semesters", "--edit"] if help_page == "timetable" else ["--write", "--exceptions"] if help_page == "exceptions" else ["--" + help_page] if help_page != "overview" else []
                         main(route + ["-h"])
                     except SystemExit as exc:
                         assert exc.code == 0
@@ -109,6 +110,6 @@ if __name__ == "__main__":
     mode.add_argument("--syntax", action="store_true", help="Capture short commands, flexible dates and a syntax error")
     mode.add_argument("--entry", action="store_true", help="Capture compact help and interactive club-name entry")
     mode.add_argument("--workflow", action="store_true", help="Capture stacked write/export and overwrite recovery")
-    mode.add_argument("--help-page", choices=["overview", "activities", "export", "exceptions"], help="Capture subtly colored help")
+    mode.add_argument("--help-page", choices=["overview", "activities", "export", "exceptions", "timetable"], help="Capture subtly colored help")
     args = parser.parse_args()
     capture(args.syntax, args.entry, args.help_page, args.workflow)

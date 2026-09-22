@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from tests.fixtures import install_example
 from bcutils.app import DEFAULT_ROOT, Workspace
 from bcutils.gui import CalendarApp, SemesterSetup
 
@@ -23,15 +24,57 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--scale", type=float, default=1.333)
     parser.add_argument("--setup", action="store_true", help="Capture the semester review screen")
+    parser.add_argument("--timetable", choices=("new", "settings", "classes", "activities", "timing"), help="Capture a timetable editor tab")
     parser.add_argument("--output", type=Path, default=DEFAULT_ROOT / "local/qa")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="bcutils-visual-") as tmp:
         root_path = Path(tmp)
-        shutil.copytree(DEFAULT_ROOT / "semesters", root_path / "semesters")
+        install_example(root_path)
         root = tk.Tk()
         root.tk.call("tk", "scaling", args.scale)
         workspace = Workspace(root_path)
+        if args.timetable:
+            from types import SimpleNamespace
+            from bcutils.semester_gui import SemesterEditor
+            CalendarApp._style(SimpleNamespace(root=root))
+            root.title("Block Calendar Utils · Timetable editor")
+            root.geometry("1000x760+30+30")
+            editor = SemesterEditor(root, workspace, None if args.timetable == "new" else "2026-27-s1")
+            if args.timetable == "new":
+                editor.id_var.set("my-semester")
+                editor.settings_vars["name"].set("My school timetable")
+                editor.settings_vars["blocks"].set("A,B,C")
+            elif args.timetable in editor.tables:
+                table = editor.tables[args.timetable]
+                editor.tabs.select(table["tab"])
+                table["tree"].selection_set("0")
+                editor.select_row(args.timetable)
+            def capture_editor():
+                try:
+                    root.update_idletasks()
+                    def visible_bounds(widget):
+                        for child in widget.winfo_children():
+                            if child.winfo_ismapped():
+                                if isinstance(child, (ttk.Button, ttk.Entry, ttk.Combobox)):
+                                    assert child.winfo_rooty() + child.winfo_height() <= root.winfo_rooty() + root.winfo_height(), f"Clipped control: {child}"
+                                    assert child.winfo_rootx() + child.winfo_width() <= root.winfo_rootx() + root.winfo_width(), f"Clipped control: {child}"
+                                visible_bounds(child)
+                    from tkinter import ttk
+                    visible_bounds(editor)
+                    if sys.platform == "win32":
+                        capture = ImageGrab.grab(window=int(root.frame(), 16))
+                    else:
+                        x, y = root.winfo_rootx(), root.winfo_rooty()
+                        capture = ImageGrab.grab(bbox=(x, y, x + root.winfo_width(), y + root.winfo_height()))
+                    path = args.output / f"timetable-{args.timetable}-{args.scale}.png"
+                    capture.save(path)
+                    print(path)
+                finally:
+                    root.destroy()
+            root.after(500, capture_editor)
+            root.mainloop()
+            return
         if args.setup:
             setup = SemesterSetup(root, workspace)
             setup.semester_var.set("2026-27-s1")

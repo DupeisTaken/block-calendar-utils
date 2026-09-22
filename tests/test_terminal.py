@@ -2,6 +2,7 @@ import unittest
 from dataclasses import replace
 from datetime import date
 
+from tests.fixtures import example_semester
 from bcutils.app import DEFAULT_ROOT
 from bcutils.models import Course
 from bcutils.schedule import build_preview, preview_text
@@ -11,7 +12,7 @@ from bcutils.terminal import display_width, wrap_line
 
 class TerminalTests(unittest.TestCase):
     def setUp(self):
-        semester = load_semester(DEFAULT_ROOT / "semesters/2026-27-s1")
+        semester = example_semester()
         courses = [Course(b, "Example " + b, enabled=True, timing_option="study_hall" if b == "T" else "") for b in semester.blocks]
         self.preview = build_preview(semester, courses, "472b895a-d1ac-4e5b-8203-02e2aa01d607", date(2026, 9, 14), date(2026, 9, 25))
 

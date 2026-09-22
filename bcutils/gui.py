@@ -71,11 +71,18 @@ class CalendarApp:
         context.pack(fill="x")
         ttk.Label(context, text="SEMESTER", style="Muted.TLabel").pack(side="left", padx=(0, 8))
         self.semester_var = tk.StringVar(value=self.ctx.semester.id)
-        ttk.Combobox(context, textvariable=self.semester_var, values=self.workspace.semesters(), state="readonly", width=18).pack(side="left")
+        self.semester_picker = ttk.Combobox(context, textvariable=self.semester_var, values=self.workspace.semesters(), state="readonly", width=18)
+        self.semester_picker.pack(side="left")
         ttk.Label(context, text="PROFILE", style="Muted.TLabel").pack(side="left", padx=(24, 8))
         self.profile_var = tk.StringVar(value=self.ctx.profile)
         ttk.Entry(context, textvariable=self.profile_var, width=16).pack(side="left")
         ttk.Button(context, text="Switch / create", command=lambda: self.run(self.switch)).pack(side="left", padx=8)
+        timetable_button = ttk.Menubutton(context, text="Timetable")
+        timetable_menu = tk.Menu(timetable_button, tearoff=False)
+        timetable_menu.add_command(label="Edit this timetable", command=lambda: self.run(self.edit_timetable))
+        timetable_menu.add_command(label="New timetable", command=lambda: self.run(lambda: self.edit_timetable(new=True)))
+        timetable_button.configure(menu=timetable_menu)
+        timetable_button.pack(side="left")
         self.clock_label = ttk.Label(context, text=str(self.ctx.semester.clock), style="Muted.TLabel")
         self.clock_label.pack(side="right")
         self.tabs = ttk.Notebook(self.root)
@@ -140,7 +147,7 @@ class CalendarApp:
                 name.trace_add("write", lambda *_, n=name, use=enabled: use.set(bool(n.get().strip())))
             ttk.Label(self.activity_grid, text=slots, style="Muted.TLabel", wraplength=750).grid(row=row * 2 + 1, column=0, columnspan=4, sticky="w", pady=(0, 10))
         if not self.activity_baseline:
-            ttk.Label(self.activity_grid, text="No activities are defined for this semester. Add its activities.csv first.", wraplength=750).grid(sticky="w")
+            ttk.Label(self.activity_grid, text="No activities are defined. Add slots through Timetable → Edit this timetable → CAS & clubs.", wraplength=750).grid(sticky="w")
 
     def read_activity_form(self):
         from dataclasses import replace
@@ -227,6 +234,12 @@ class CalendarApp:
 
     def _exceptions_layout(self):
         ttk.Label(self.exceptions_tab, text="Exceptions · dates, weekday patterns and time filters", style="Section.TLabel").pack(anchor="w", pady=(0, 10))
+        source_row = ttk.Frame(self.exceptions_tab)
+        source_row.pack(fill="x", pady=(0, 8))
+        ttk.Label(source_row, text="Save / remove in").pack(side="left", padx=(0, 8))
+        self.exc_source = tk.StringVar(value="Yours")
+        ttk.Combobox(source_row, textvariable=self.exc_source, values=("Yours", "School"), state="readonly", width=10).pack(side="left")
+        ttk.Label(source_row, text="School rules apply to every profile; personal rules take precedence.", style="Muted.TLabel").pack(side="left", padx=12)
         columns = ("date", "action", "pattern", "shift", "skip", "note", "source")
         self.exception_holder = ttk.Frame(self.exceptions_tab)
         self.exception_holder.pack(fill="both", expand=True)
@@ -282,7 +295,7 @@ class CalendarApp:
         ttk.Entry(row, textvariable=self.exc_note).pack(side="left", fill="x", expand=True)
         self.save_date_button = ttk.Button(row, text="Save date", command=lambda: self.run(self.save_exception))
         self.save_date_button.pack(side="left", padx=8)
-        ttk.Button(row, text="Remove my date", command=lambda: self.run(self.remove_exception)).pack(side="left")
+        ttk.Button(row, text="Remove date", command=lambda: self.run(self.remove_exception)).pack(side="left")
         # Reserve the editor before giving remaining height to the date list.
         row.pack_configure(side="bottom", before=self.exception_holder)
         hint.pack_configure(side="bottom", before=self.exception_holder)
@@ -375,6 +388,27 @@ class CalendarApp:
         self.refresh_exceptions()
         self.clock_label.configure(text=str(self.ctx.semester.clock))
         self.status.set("Reloaded the latest files.")
+
+    def edit_timetable(self, new=False):
+        from .semester_gui import open_editor
+        if not self.keep_edits():
+            return
+        # The modal editor owns school changes. Refresh the active definition
+        # after a save so the rest of the app cannot export a stale timetable.
+        def saved(sid):
+            self.semester_picker.configure(values=self.workspace.semesters())
+            if sid == self.ctx.semester.id:
+                self.ctx = self.workspace.context(self.ctx.profile, sid)
+                self.load_courses()
+                self.load_activities()
+                self.refresh_exceptions()
+                self.exc_pattern_box.configure(values=self.ctx.semester.patterns)
+                self.exc_pattern.set(self.ctx.semester.patterns[0])
+                self.cutoff_label.configure(text=self.exception_hint())
+                self.clock_label.configure(text=str(self.ctx.semester.clock))
+                self.set_preview_text("Timetable changed. Preview again to see the updated times.")
+                self.status.set("Timetable saved. Refresh the preview before exporting.")
+        open_editor(self, self.workspace, None if new else self.ctx.semester.id, saved)
 
     def keep_edits(self):
         if not self.dirty():
@@ -497,8 +531,10 @@ class CalendarApp:
         from .storage import load_overrides
         self.exception_digest = digest(self.ctx.exceptions_path)
         self.exception_items = self.ctx.exceptions()
+        self.school_exception_digest = digest(self.ctx.folder / "exceptions.csv")
         self.exception_rows = {}
         school = load_overrides(self.ctx.folder / "exceptions.csv", self.ctx.semester)
+        self.school_exception_items = school
         for item in self.exception_tree.get_children():
             self.exception_tree.delete(item)
         for source, items in [("School", school), ("Yours", self.exception_items)]:
@@ -512,7 +548,8 @@ class CalendarApp:
         selected = self.exception_tree.selection()
         if not selected:
             return
-        day, action, pattern, shift, skip, note, _ = self.exception_tree.item(selected[0], "values")
+        day, action, pattern, shift, skip, note, source = self.exception_tree.item(selected[0], "values")
+        self.exc_source.set(source)
         item = self.exception_rows[selected[0]]
         self.exc_end.set("")
         self.exc_blank.set(item.blank_hours)
@@ -537,17 +574,26 @@ class CalendarApp:
         item = DayOverride(day, action, self.exc_pattern.get() if action == "use" else "", shift, self.exc_note.get().strip(), half,
                            self.exc_blank.get().strip(), self.exc_morning.get().strip(), self.exc_afternoon.get().strip(), self.exc_overlap.get())
         days = self.exception_dates()
-        items = [i for i in self.exception_items if i.date not in days] + [replace(item, date=d) for d in days]
-        self.ctx.save_exceptions(items, self.exception_digest)
+        path, original, expected = self.exception_target()
+        items = [i for i in original if i.date not in days] + [replace(item, date=d) for d in days]
+        from .storage import save_overrides
+        save_overrides(path, items, self.ctx.semester, expected)
         self.weekdays_var.set(False)
         self.refresh_exceptions()
         self.status.set(f"Saved exceptions for {min(days)} to {max(days)}. Refresh the preview to see them.")
 
     def remove_exception(self):
         days = self.exception_dates()
-        self.ctx.save_exceptions([i for i in self.exception_items if i.date not in days], self.exception_digest)
+        from .storage import save_overrides
+        path, original, expected = self.exception_target()
+        save_overrides(path, [i for i in original if i.date not in days], self.ctx.semester, expected)
         self.refresh_exceptions()
-        self.status.set("Removed your exceptions for the selected dates. School/default rules apply again.")
+        self.status.set(f"Removed {self.exc_source.get().lower()} exceptions for the selected dates. Refresh the preview.")
+
+    def exception_target(self):
+        if self.exc_source.get() == "School":
+            return self.ctx.folder / "exceptions.csv", self.school_exception_items, self.school_exception_digest
+        return self.ctx.exceptions_path, self.exception_items, self.exception_digest
 
     def exception_dates(self):
         """GUI fields stay ISO even though the terminal accepts short dates."""
@@ -581,14 +627,15 @@ class SemesterSetup:
         ttk.Label(self.frame, text="Start with your semester", style="Title.TLabel").pack(anchor="w")
         ttk.Label(self.frame, text="Review the blocks and weekly arrangement before entering courses.", style="Muted.TLabel", wraplength=680).pack(anchor="w", pady=(8, 18))
         self.semester_var = tk.StringVar()
-        picker = ttk.Combobox(self.frame, textvariable=self.semester_var, values=workspace.semesters(), state="readonly", width=30)
+        picker = self.semester_picker = ttk.Combobox(self.frame, textvariable=self.semester_var, values=workspace.semesters(), state="readonly", width=30)
         picker.pack(anchor="w", pady=(0, 14))
         picker.bind("<<ComboboxSelected>>", lambda _: self.review())
         footer = ttk.Frame(self.frame)
         footer.pack(side="bottom", fill="x", pady=(14, 0))
         self.use_button = ttk.Button(footer, text="Use this timetable", style="Accent.TButton", command=self.activate, state="disabled")
         self.use_button.pack(side="right")
-        ttk.Label(footer, text="New semester? Define it from the terminal first.", style="Muted.TLabel", wraplength=400).pack(side="left")
+        ttk.Button(footer, text="New timetable", command=lambda: self.edit_timetable(new=True)).pack(side="left")
+        ttk.Button(footer, text="Edit timetable", command=self.edit_timetable).pack(side="left", padx=8)
         holder = ttk.Frame(self.frame)
         holder.pack(fill="both", expand=True)
         self.text = tk.Text(holder, wrap="word", bg="white", fg=INK, font=(self.font, 11), relief="flat", padx=18, pady=14)
@@ -596,7 +643,20 @@ class SemesterSetup:
         scroll.pack(side="right", fill="y")
         self.text.configure(yscrollcommand=scroll.set)
         self.text.pack(fill="both", expand=True)
-        self.set_text("Choose an existing semester above to review its timetable.\n\nTo define different blocks and times:\n\npython -m bcalendar-utils --write --semesters --new spring --blocks X,Y,Z\n\nFill semesters/spring/timetable.csv, then run:\n\npython -m bcalendar-utils --write --semesters --use spring\n\nClose and reopen this window after creating a new definition.")
+        self.set_text("Choose an existing semester to review its timetable.\n\nUse New timetable to define your blocks, weekday patterns and school clock, then add class and activity sessions.\n\nUse Edit timetable to finish a draft or change an existing arrangement. Save a complete timetable before selecting it for course entry.")
+
+    def edit_timetable(self, new=False):
+        from .semester_gui import open_editor
+        def saved(sid):
+            self.semester_picker.configure(values=self.workspace.semesters())
+            self.semester_var.set(sid)
+            self.review()
+        try:
+            if not new and not self.semester_var.get():
+                raise CalendarError("Choose a semester to edit, or click New timetable.")
+            open_editor(self, self.workspace, None if new else self.semester_var.get(), saved)
+        except (CalendarError, OSError) as exc:
+            self.set_text(str(exc))
 
     def set_text(self, value):
         self.text.configure(state="normal")
@@ -609,7 +669,7 @@ class SemesterSetup:
             self.set_text(describe_semester(safe_child(self.workspace.root / "semesters", self.semester_var.get())))
             self.use_button.configure(state="normal")
         except (CalendarError, OSError) as exc:
-            self.set_text(f"This definition needs attention before use.\n\n{exc}\n\nEdit its semester.json and timetable.csv, then select it again.")
+            self.set_text(f"This definition needs attention before use.\n\n{exc}\n\nClick Edit timetable to complete or correct it, then save.")
             self.use_button.configure(state="disabled")
 
     def activate(self):

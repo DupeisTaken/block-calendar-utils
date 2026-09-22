@@ -14,6 +14,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from tests.fixtures import install_example
 from bcutils.app import DEFAULT_ROOT, Workspace
 from bcutils.cli import main
 from bcutils.cli_dates import parse_cli_date
@@ -72,7 +73,7 @@ class CLITests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="bcutils with spaces ")
         self.root = Path(self.temp.name)
-        shutil.copytree(DEFAULT_ROOT / "semesters", self.root / "semesters")
+        install_example(self.root)
         self.workspace = Workspace(self.root)
 
     def tearDown(self):
@@ -397,7 +398,7 @@ class CLITests(unittest.TestCase):
 
     def test_first_use_and_command_help_are_separate_and_read_only(self):
         guide = self.ok("help").stdout
-        self.assertIn("--semesters --use 2026-27-s1", guide)
+        self.assertIn("--semesters --use mine", guide)
         self.assertIn("--courses", guide)
         self.assertEqual(guide, self.ok("h").stdout)
         for topic in ("semester", "courses", "exceptions"):

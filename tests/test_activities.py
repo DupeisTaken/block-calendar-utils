@@ -7,6 +7,7 @@ from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
+from tests.fixtures import install_example
 from bcutils.app import DEFAULT_ROOT, Workspace
 from bcutils.models import Activity, CalendarError, DayOverride
 from bcutils.schedule import build_preview
@@ -18,7 +19,7 @@ class ActivityTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        shutil.copytree(DEFAULT_ROOT / "semesters", self.root / "semesters")
+        install_example(self.root)
         self.workspace = Workspace(self.root)
         self.ctx = self.workspace.use_semester("2026-27-s1")
         self.settings = dict(mode="week", anchor="2026-09-14", schedule_mode="weekdays")
