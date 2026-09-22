@@ -1,5 +1,6 @@
 /local/
 /exports/
+/semesters/
 /.venv/
 /.venv-*/
 __pycache__/
