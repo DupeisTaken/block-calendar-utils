@@ -9,7 +9,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from bcutils.cli import main, parser, help_parser
+from bcutils.cli import FriendlyParser, add_command, main, parser, help_parser
+from bcutils.cli_interface import path_of, render_help
 from bcutils.help_style import SpacedHelpFormatter, style_help, windows_vt, write_help, emit, ask, error_message
 
 
@@ -22,6 +23,22 @@ class TerminalStream(io.StringIO):
 
 
 class HelpStyleTests(unittest.TestCase):
+    def test_help_routes_do_not_depend_on_prog_or_custom_usage(self):
+        # Reproduce pre-3.14 argparse usage prefixes and alternate entry-point
+        # spellings without depending on the interpreter running this test.
+        root = FriendlyParser(prog='python "calendar tool.py"',
+                              usage="%(prog)s [COMMAND] [OPTIONS]")
+        courses = add_command(root.add_subparsers(dest="command"), "courses")
+        edit = add_command(courses.add_subparsers(dest="action"), "edit")
+        edit.add_argument("blocks", nargs="*")
+        self.assertEqual(path_of(root), ())
+        self.assertEqual(path_of(help_parser(root, ["c", "e"])), ("courses", "edit"))
+        expected = render_help(edit, detailed=True)
+        edit.prog = "python -m renamed [COMMAND] [OPTIONS] courses edit"
+        self.assertEqual(render_help(edit, detailed=True), expected)
+        self.assertIn("--write --courses --edit", expected)
+        self.assertNotIn("[COMMAND]", expected)
+
     def test_last_inspection_help_scopes_the_l_shortcut(self):
         from bcutils.cli_interface import render_help
         cli = parser()

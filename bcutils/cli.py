@@ -31,6 +31,7 @@ COMMAND_ALIASES = {
 
 def add_command(subs, name, **kwargs):
     child = subs.add_parser(name, aliases=[COMMAND_ALIASES[name]], **kwargs)
+    child.command_path = (*subs.command_path, name)
     child.set_defaults(**{subs.dest: name})
     return child
 
@@ -58,6 +59,15 @@ class FriendlyParser(argparse.ArgumentParser):
         if sys.version_info >= (3, 14):
             kwargs["color"] = False
         super().__init__(*args, **kwargs)
+        self.command_path = ()
+
+    def add_subparsers(self, **kwargs):
+        # Older argparse versions include custom usage placeholders in child
+        # prog strings. Keep display text separate from canonical routing.
+        kwargs.setdefault("prog", self.prog)
+        subs = super().add_subparsers(**kwargs)
+        subs.command_path = self.command_path
+        return subs
 
     def format_help(self):
         return render_help(self)

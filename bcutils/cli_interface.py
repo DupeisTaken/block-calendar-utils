@@ -42,7 +42,8 @@ DETAIL_OPTIONS = {
 
 
 def path_of(parser):
-    return tuple(parser.prog.split()[3:])
+    """Use canonical tree metadata, never version-dependent help text."""
+    return parser.command_path
 
 
 def public_path(path, mode=None):

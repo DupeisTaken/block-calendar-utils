@@ -71,7 +71,9 @@ class CLITests(unittest.TestCase):
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="bcutils with spaces ")
-        self.root = Path(self.temp.name)
+        # Match Workspace canonical paths, including macOS /var aliases and
+        # Windows short temporary-directory names.
+        self.root = Path(self.temp.name).resolve()
         shutil.copytree(DEFAULT_ROOT / "semesters", self.root / "semesters")
         self.workspace = Workspace(self.root)
 
